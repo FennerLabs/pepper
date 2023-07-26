@@ -4,6 +4,7 @@ from pepper.pepper import Pepper
 from pepper.metadata import *
 from pepper.util import *
 from enviPath_python import enviPath
+from enviPath_python.objects import Package, Scenario
 
 class DataStructure(Pepper):
     def __init__(self, pep: Pepper):
