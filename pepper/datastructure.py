@@ -234,9 +234,7 @@ class DataStructure(Pepper):
             self.model_data[self.plant_name] = self.cpd_data[self.plant_name]
 
         self.model_data.to_csv(self.model_data_tsv, sep='\t', index=False)
-        print(self.model_data_tsv)
-        print('hello')
-
+        
     def randomize_y(self):
         random_y = (self.model_data[self.target_variable_name].sample(frac=1, random_state=42,
                                                                       replace=False, ignore_index=False)).values
