@@ -12,6 +12,6 @@ RF:
     feature_selection_parameters:
         importance:
             method: importance
-            min_importance: 0.05
+            min_importance: 0.005
     feature_reduction_method: None
     feature_reduction_parameters: {}
