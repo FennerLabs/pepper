@@ -55,5 +55,5 @@ Use this link to start a session and test PEPPER
 
 ## Related Projects
 We also have a pepper_app 
-[<img alt="launch - streamlit" height="20" src="https://streamlit.io/images/brand/streamlit-mark-color.svg" title="Launch pepper_app" width="20"/>]()
+[<img alt="launch - streamlit" height="20" src="https://streamlit.io/images/brand/streamlit-mark-color.svg" title="Launch pepper_app" width="20"/>](https://pepper-app.streamlit.app)
 to predict several endpoints of interest related to environmental persistence

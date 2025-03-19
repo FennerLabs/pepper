@@ -8,6 +8,7 @@ RF:
         min_samples_leaf: 7
         max_features: 1 # max_features == n_features
         n_jobs: -1
+        random_state: 42
     feature_selection_method: importance
     feature_selection_parameters:
         importance:
