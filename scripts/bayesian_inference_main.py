@@ -1,15 +1,23 @@
-# This script was used to perform data analyses and create figures in Hafner et al., 2023
+# This is an example ML workflow using pepper
 import sys
-sys.path.insert(0, '../')
+sys.path.insert(0, '..')
 from pepper.pepper import Pepper
+from pepper.datastructure import DataStructure
 from pepper.datastructuresoil import DataStructureSoil
+from pepper.descriptors import Descriptors
+from pepper.modeling import Modeling
 from pepper.bayesian import Bayesian
 
 import pandas as pd
+import os
+import numpy as np
+from scipy.stats import norm
+import emcee
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import random
+from multiprocessing import pool
 
 def figure_1(df_red, output_path):
     # mean, std
@@ -42,7 +50,7 @@ def figure_1(df_red, output_path):
         D['Method'].append('Descriptive')
         D['Method'].append('Inferred')
         if row['DT50_count'] < 3:
-            D['Standard deviation'].append(np.NaN)
+            D['Standard deviation'].append(np.nan)
         else:
             D['Standard deviation'].append(row['DT50_log_std'])
         D['Standard deviation'].append(row['DT50_log_bayesian_std'])
@@ -277,6 +285,7 @@ if __name__ == '__main__':
     pep.set_target_variable_std_name('logDT50_std')
     pep.set_smiles_name('SMILES')
     pep.set_id_name('ID')
+    pep.set_compound_name('compound_name')
 
     # load data
     soil_data = DataStructureSoil(pep)
@@ -284,8 +293,8 @@ if __name__ == '__main__':
     soil_data.reduce_data()
 
     # Reproduce figures from paper
-    pep.set_data_directory('/pepper_data/bayesian_inference/')
-    figure_1(soil_data.cpd_data, pep.get_data_directory() + 'figure_1')
+    pep.set_data_directory(os.path.join('pepper_data', 'bayesian_inference'))
+    figure_1(soil_data.cpd_data, os.path.join(pep.get_data_directory(), 'figure_1'))
 
     # define prior
     prior = {

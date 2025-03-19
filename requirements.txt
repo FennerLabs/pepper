@@ -1,0 +1,24 @@
+numpy~=1.26.0
+pandas~=2.1.1
+rdkit~=2024.3.5
+matplotlib~=3.8.0
+seaborn~=0.13.0
+pubchempy~=1.0.4
+requests~=2.32.3
+scikit-learn~=1.3.1
+emcee~=3.1.6 # # worked with 3.1.4 Used for bayesian inference
+scipy~=1.11.3
+padelpy~=0.1.14
+mordredcommunity~=2.0.4
+enviPath-python~=0.2.3
+tqdm~=4.66.1
+setuptools~=68.0.0
+sklearn-genetic~=0.6.0
+joblib~=1.4.2
+molfeat~=0.10.0
+mlxtend~=0.23.1
+tabulate~=0.9.0
+umap-learn~=0.5.6  # UMAP-learn installation is a bit tricky; I was succesful with conda
+scikit-posthocs~=0.9.1  # Installed with conda; seaborn updated to 0.13.2
+babel~=2.17.0
+

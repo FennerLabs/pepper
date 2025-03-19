@@ -1,30 +1,37 @@
+import os
 from pepper.pepper import Pepper
-from pepper.metadata import *
+# from pepper.metadata import *
 from pepper.util import *
 from pepper.datastructure import DataStructure
 from pepper.bayesian import *
+from pepper.visualize import Visualize
+
 
 class DataStructureSoil(DataStructure):
     def __init__(self, pep: Pepper):
         super().__init__(pep)
-        self.set_data_directory('/pepper_data/data_structure/soil/')
+        self.set_data_directory(os.path.join(pep.data_directory,'data_structure','soil'))
+        self.smiles_name = pep.get_smiles_name()
+        self.target_variable_name = pep.get_target_variable_name()
+        self.target_variable_std_name = pep.get_target_variable_std_name()
+        self.compound_name = pep.get_compound_name()
+        self.id_name = pep.get_id_name()
+
         self.envipath_package = 'https://envipath.org/package/5882df9c-dae1-4d80-a40e-db4724271456'
         self.data_type = 'soil'
         self.data_dict = {}
-        
+
+        # These are general, yet, they must be initialized with the info of the new object
+        # Can we avoid defining all these for every subclass?
         self.raw_data_tsv = self.build_output_filename('raw_data')
         self.full_data_tsv = self.build_output_filename('full_data')
         self.cpd_data_tsv = self.build_output_filename('cpd_data')
         self.model_data_tsv = self.build_output_filename('model_data')
-        
         self.cpd_data_description_file = self.build_output_filename('cpd_data_description')
+
+        # Soil specific attributes
         self.spike_compound_dictionary = {}
 
-        # default variable names
-        self.target_variable_name = 'logDT50_mean'
-        self.target_variable_std_name = 'logDT50_std'
-        self.smiles_name = 'SMILES'
-        self.id_name = 'ID'
 
     def curate_annotate(self, from_csv: bool = False, from_paper: bool = False):
         """
@@ -35,7 +42,7 @@ class DataStructureSoil(DataStructure):
         """
         if from_csv:
             if from_paper:
-                self.full_data = pd.read_csv('../data/full_data_soil_all_data.tsv', sep='\t')
+                self.full_data = pd.read_csv(os.path.join('..', 'data', 'soil', 'full_data_soil_all_data.tsv'), sep='\t')
                 return
             else:
                 self.full_data = pd.read_csv(self.full_data_tsv, sep='\t')
@@ -44,9 +51,8 @@ class DataStructureSoil(DataStructure):
 
         self.full_data = self.raw_data
         self.curate_smiles()
-        self.transform_values()
-        self.curate_halflife_data()
 
+        self.curate_halflife_data()
 
     def transform_values(self, from_csv = False):
         print("\n############# Value transformation - log transformation and bayesian inference ############# ")
@@ -109,8 +115,9 @@ class DataStructureSoil(DataStructure):
         self.full_data['halflife_model_category'] = halflife_model_category
 
         self.full_data.to_csv(self.full_data_tsv, sep='\t', index=False)
+        print('Curated file saved to', self.full_data_tsv)
 
-    def reduce_for_modelling(self, from_csv = False):
+    def reduce_for_modelling(self, from_csv = False): #todo: separate function to only load model data
         print("\n############# Reduce data set ############# ")
         if from_csv:
             self.cpd_data = pd.read_csv(self.cpd_data_tsv, sep='\t')
@@ -128,27 +135,21 @@ class DataStructureSoil(DataStructure):
         # reduce dataset
         print('Data frame size: ', len(self.full_data))
         self.cpd_data = self.full_data.loc[:,
-              [self.id_name, self.smiles_name, self.compound_name, 'compound_id',  'DT50_count', 'DT50_gmean', 'DT50_log_median', 'DT50_log_gmean',
+              [self.id_name, self.smiles_name, self.compound_name, 'compound_id', # 'node_depth', removed, not available anymore
+               'DT50_count', 'DT50_gmean', 'DT50_log_median', 'DT50_log_gmean',
                'DT50_log_spread', 'DT50_log_std', 'DT50_log_bayesian_mean', 'DT50_log_bayesian_std',
                'DT50_log_bayesian_mean_std', 'acidity_std', 'CEC_log_std', 'OC_log_std', 'biomass_log_std', 'temperature_std',
                'canonical_SMILES', 'cropped_canonical_SMILES', 'cropped_canonical_SMILES_no_stereo']]
         self.cpd_data = self.cpd_data.drop_duplicates(self.id_name)
+        self.cpd_data[self.target_variable_name] = self.cpd_data['DT50_log_bayesian_mean']
+        self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_std']
 
         # save and describe
         print('Data frame size: ', len(self.cpd_data))
         self.cpd_data.to_csv(self.cpd_data_tsv, sep='\t', index=False)
+        print('Compound data file saved to', self.cpd_data_tsv)
         description = self.cpd_data.describe()
         description.to_csv(self.cpd_data_description_file, sep='\t', index=False)
-
-    def create_modelling_input(self):
-        self.model_data = self.cpd_data.loc[:,
-                          [self.id_name,
-                           self.smiles_name,
-                           self.compound_name]]
-        # set target variables
-        self.model_data[self.target_variable_name] = self.cpd_data['DT50_log_bayesian_mean']
-        self.model_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_std']
-        self.model_data.to_csv(self.model_data_tsv, sep = '\t', index=False)
 
     def curate_manually(self):
         print("\n############# Manual curation ############# ")
@@ -178,70 +179,12 @@ class DataStructureSoil(DataStructure):
         self.cpd_data.drop(self.cpd_data[self.cpd_data[self.compound_name] == 'sum of Kresoxim-methyl and BF 490-1'].index,
                            inplace=True)
 
-
         print('Data set without composite mixtures: {}'.format(self.cpd_data.shape[0]))
 
         # Check:
         duplicates = self.cpd_data[self.cpd_data.duplicated([self.smiles_name])]
         print('Number of duplicated cropped canonical SMILES without stereo information:', duplicates.shape[0])
         self.cpd_data.to_csv(self.cpd_data_tsv, sep='\t', index=False)
-
-    def get_cropped_smiles(self):
-        new_composite = []
-        new_smiles = []
-        full_smiles = ''
-        cropped_smiles = ''
-        is_composite = False
-        for index, row in self.full_data.iterrows():
-            if row['smiles'] != full_smiles:
-                full_smiles = row['smiles']
-                cropped_smiles = full_smiles
-                is_composite = False
-                if '.' in full_smiles:
-                    smiles_list = full_smiles.split('.')
-                    smiles_list.sort(key=len, reverse=True)
-                    cropped_smiles = smiles_list[0]
-                    # special case of fluroxypyr ester + acid: keep acid part
-                    if full_smiles == 'CCCCCCC(C)OC(=O)COc1nc(F)c(Cl)c(N)c1Cl.Nc1c(Cl)c(F)nc(OCC(=O)O)c1Cl':
-                        cropped_smiles = 'Nc1c(Cl)c(F)nc(OCC(=O)O)c1Cl'
-                    is_composite = True
-            new_smiles.append(cropped_smiles)
-            new_composite.append(is_composite)
-        return new_smiles, new_composite
-
-    def get_canonicalized_smiles(self):
-        new = []
-        full_smiles = ''
-        canonical_smiles = ''
-        for index, row in self.full_data.iterrows():
-            if row['smiles'] != full_smiles:
-                full_smiles = row['smiles']
-                canonical_smiles = Util.canonicalize_smiles(full_smiles)
-            new.append(canonical_smiles)
-        return new
-    
-    def get_cropped_canonicalize_smiles(self):
-        new = []
-        cropped_smiles = ''
-        cropped_canonical_smiles = ''
-        for index, row in self.full_data.iterrows():
-            if row['cropped_SMILES'] != cropped_smiles:
-                cropped_smiles = row['cropped_SMILES']
-                cropped_canonical_smiles = Util.canonicalize_smiles(cropped_smiles)
-            new.append(cropped_canonical_smiles)
-        return new
-    
-    def get_cropped_canonicalize_smiles_no_stereo(self):
-        new = []
-        cropped_canonical_smiles = ''
-        cropped_canonical_smileo_no_stereo = ''
-        for index, row in self.full_data.iterrows():
-            if row['cropped_canonical_SMILES'] != cropped_canonical_smiles:
-                cropped_canonical_smiles = row['cropped_canonical_SMILES']
-                cropped_canonical_smileo_no_stereo = Util.canonicalize_smiles(Util.remove_stereo_info(cropped_canonical_smiles))
-            new.append(cropped_canonical_smileo_no_stereo)
-        return new
-                        
 
     def check_spike_consistency(self, compound, spike):
         if type(spike) == float:
@@ -346,7 +289,7 @@ class DataStructureSoil(DataStructure):
                 this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
                 comment_list_raw = self.process_comment_list(this["halflife_comment"])
                 y_raw = np.array(this['DT50_log'])
-                if curate_data == True:
+                if curate_data:
                     is_valid = this['halflife_is_valid']
                     models = this['halflife_model_category']
                     is_spike = this['matching_spike']
@@ -475,7 +418,17 @@ class DataStructureSoil(DataStructure):
             new = "SFO"
         return new
 
-    #### Visualization ###
-    def visualize(self):
-        vis = VisualizeSoil(self.pepper, self)
-        vis.print_violin_plot()
+    # Visualization
+    def analyze_distributions(self):
+        """
+        This function visualizes the distribution of the mean and the standard deviation of the target variable.
+        Optionally, distributions obtained from Bayesian inference can be considered.
+        """
+        print("\n############# Analyze target variable distribution ############# ")
+        v = Visualize(self,'analyze_distributions')
+        # distribution of target variable
+        v.plot_target_variable_distribution(mean_name='DT50_log_gmean', std_name='DT50_log_std', cutoff_value = 20,
+                                            include_BI = True,
+                                          BI_mean_name = 'DT50_log_bayesian_mean',
+                                          BI_std_name = 'DT50_log_bayesian_std')
+

@@ -1,0 +1,116 @@
+RF:
+    name: Random Forest Regressor
+    regressor: RandomForestRegressor
+    regressor_params:
+        n_estimators: [50, 100 ]
+        max_depth: [ null, 20 ] # null translates to None
+        min_samples_split: [ 2, 5, 10 ]
+    feature_selection_method: [importance, None]
+    feature_selection_parameters:
+        importance:
+            method: importance
+            min_importance: 0.005
+    feature_reduction_method: [None]
+    feature_reduction_parameters: { }
+
+GB:
+    name: Gradient Boosting Regressor
+    regressor: GradientBoostingRegressor
+    regressor_params:
+        n_estimators: [ 50, 100]
+        learning_rate: [ 0.01, 0.1, 0.2 ]
+        max_depth: [ 3, null ]  # null translates to None
+    feature_selection_method: [importance, None]
+    feature_selection_parameters:
+        importance:
+            method: importance
+            min_importance: 0.005
+    feature_reduction_method: [None]
+    feature_reduction_parameters: { }
+
+AB:
+    name: Ada Boost Regressor
+    regressor: AdaBoostRegressor
+    regressor_params:
+        n_estimators: [ 50, 100]
+        learning_rate: [ 0.1, 1, 2]
+    feature_selection_method: [importance, None]
+    feature_selection_parameters:
+        importance:
+            method: importance
+            min_importance: 0.005
+    feature_reduction_method: [None]
+    feature_reduction_parameters: { }
+
+MLP:
+    name: MLP Regressor
+    regressor: MLPRegressor
+    regressor_params:
+        max_iter: [2000]
+        alpha: [ 0.01, 0.0001, 0.000001 ]
+        hidden_layer_sizes:
+            - (50,)
+            - (20,)
+            - (50, 20)
+        activation: [ 'relu', 'tanh' ]
+        solver: [ 'adam', 'sgd', 'lbfgs' ]
+    feature_selection_method: ['sequential', None]
+    feature_selection_parameters:
+        sequential:
+            method: 'top_k'
+            top_k: 50
+    feature_reduction_method: ['pca',  None]
+    feature_reduction_parameters:
+        pca:
+            n_components: 10  ## Will not work if it is a list
+
+SVR:
+    name: Support Vector Regressor
+    regressor: SVR
+    regressor_params:
+        C: [ 0.1, 1, 10 ]
+        epsilon: [ 0.01, 0.1, 1 ]
+        kernel: ['rbf' ]
+    feature_selection_method: [ 'sequential', None]
+    feature_selection_parameters:
+        sequential:
+            method: 'top_k'
+            top_k: 50
+    feature_reduction_method: ['pca', None]
+    feature_reduction_parameters:
+        pca:
+            n_components: 10
+
+
+KNN:
+    name: KNN Regressor
+    regressor: KNeighborsRegressor
+    regressor_params:
+        n_neighbors: [3, 5, 10]
+        weights: ['uniform', 'distance']
+        p: [1, 2]
+    feature_selection_method: ['sequential', None]
+    feature_selection_parameters:
+        sequential:
+            method: 'top_k'
+            top_k: 50
+    feature_reduction_method: ['pca', None]
+    feature_reduction_parameters:
+        pca:
+            n_components: 10
+
+GPR:
+    name: Gaussian Process Regressor
+    regressor: GaussianProcessRegressor
+    regressor_params:
+        normalize_y: [True, False]
+        n_restarts_optimizer: [0, 1, 2]
+    feature_selection_method: ['sequential', None ]
+    feature_selection_parameters:
+        sequential:
+            method: 'top_k'
+            top_k: 50
+    feature_reduction_method: ['pca', None]
+    feature_reduction_parameters:
+        pca:
+            n_components: 10

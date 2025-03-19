@@ -1,0 +1,105 @@
+RF:
+    name: Random Forest Regressor
+    regressor: RandomForestRegressor
+    regressor_params:
+        n_estimators: [ 10, 50, 100 ]
+        max_depth: [ null, 5, 10, 20 ] # null translates to None
+        min_samples_split: [ 2, 5, 10 ]
+    feature_selection_method: [importance, None]
+    feature_selection_parameters:
+        importance:
+            method: importance
+            min_importance: 0.005
+    feature_reduction_method: []
+    feature_reduction_parameters: { }
+
+GB:
+    name: Gradient Boosting Regressor
+    regressor: GradientBoostingRegressor
+    regressor_params:
+        n_estimators: [ 50, 100, 200 ]
+        learning_rate: [ 0.01, 0.1, 0.2 ]
+        max_depth: [ 3, 4, 5 ]
+    feature_selection_method: [importance, None]
+    feature_selection_parameters:
+        importance:
+            method: importance
+            min_importance: 0.005
+    feature_reduction_method: []
+    feature_reduction_parameters: { }
+
+MLP:
+    name: MLP Regressor
+    regressor: MLPRegressor
+    regressor_params:
+        max_iter: [2000]
+        alpha: [ 0.01, 0.0001, 0.000001 ]
+        hidden_layer_sizes:
+            - (100,)
+            - (50,)
+            - (20,)
+            - (100, 50)
+            - (50, 50)
+        activation: [ 'relu', 'tanh' ]
+        solver: [ 'adam', 'sgd', 'lbfgs' ]
+    feature_selection_method: [None]
+    feature_selection_parameters: {}
+    feature_reduction_method: [None]
+    feature_reduction_parameters: {}
+
+SVR:
+    name: Support Vector Regressor
+    regressor: SVR
+    regressor_params:
+        C: [ 0.1, 1, 10 ]
+        epsilon: [ 0.01, 0.1, 1 ]
+        kernel: [ 'linear', 'poly', 'rbf' ]
+    feature_selection_method: [ 'genetic', 'sequential', None]
+    feature_selection_parameters:
+        genetic: {}
+        sequential:
+            method: min_improvement
+            top_k: 25
+            min_improvement: 0
+    feature_reduction_method: ['pca', 'svd', None]
+    feature_reduction_parameters:
+        svd:
+            n_components: [5,6,7,8]
+        pca:
+            n_components: [5,6,7,8]
+
+
+KNN:
+    name: KNN Regressor
+    regressor: KNeighborsRegressor
+    regressor_params:
+        n_neighbors: [3, 5, 7]
+        weights: ['uniform', 'distance']
+        p: [1, 2]
+    feature_selection_method: ['sequential', None]
+    feature_selection_parameters:
+        sequential:
+            method: min_improvement
+            top_k: 25
+            min_improvement: 0
+    feature_reduction_method: ['pca', 'svd', None]
+    feature_reduction_parameters:
+        svd:
+            n_components: 8
+        pca:
+            n_components: 8
+
+GPR:
+    name: Gaussian Process Regressor
+    regressor: GaussianProcessRegressor
+    regressor_params:
+        normalize_y: [True, False]
+        n_restarts_optimizer: [0, 1, 2]
+    feature_selection_method: [ None ]
+    feature_selection_parameters: { }
+    feature_reduction_method: ['pca', 'svd']
+    feature_reduction_parameters:
+        svd:
+            n_components: [5,6,7,8]
+        pca:
+            n_components: [5,6,7,8]

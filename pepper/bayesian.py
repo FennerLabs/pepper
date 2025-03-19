@@ -68,6 +68,12 @@ class Bayesian:
     def set_path_to_output_folder(self, output_path):
         self.output_path = output_path
 
+    def set_LOQ_upper(self, LOQ):
+        self.LOQ_upper = LOQ
+
+    def set_LOQ_lower(self, LOQ):
+        self.LOQ_lower = LOQ
+
     #### GET FUNCTIONS
     def get_walkers(self):
         return self.nwalkers
@@ -107,58 +113,51 @@ class Bayesian:
                 censored_values.append(self.y[i])
         return censored_values
 
-
     # Class functions
     def determine_LOQ(self):
         """
         Determines if the LOQ is upper or lower, and the value (if not default)
-        :return: LOQ , is_upper_LOQ
+        :return: upper_LOQ , lower_LOQ
         """
-        assert not (max(self.y) > self.LOQ_upper and min(self.y) < self.LOQ_lower), \
-            "ERROR: log(HLs) above ({}) upper LOQ ({}) AND below ({}) lower LOQ ({})".format(max(self.y),
-                                                                                            self.LOQ_upper,
-                                                                                            min(self.y),
-                                                                                            self.LOQ_lower)
+
         censored_values = self.get_censored_values_only()
-        LOQ = np.NaN
-        is_upper = None
+
+        # Find upper LOQ
+        upper_LOQ = np.nan
         # bigger than global LOQ
         if max(self.y) >= self.LOQ_upper:
-            LOQ = self.LOQ_upper
-            is_upper = True
-        # smaller than global LOQ
-        elif min(self.y) <= self.LOQ_lower:
-            LOQ = self.LOQ_lower
-            is_upper = False
-        # case if exactly 1 day
-        elif min(self.y) == 0: # 1 day
-            LOQ = 0
-            self.LOQ_lower = 0
-            is_upper = False
+            upper_LOQ = self.LOQ_upper
         # case if exactly 365 days
         elif max(self.y) == 2.562: # 365 days
-            LOQ = 2.562
-            self.LOQ_upper = LOQ
-            is_upper = True
-        # case if "smaller than" indication in comments
-        elif '<' in self.comment_list:
-            i = 0
-            while i < len(self.y):
-                if self.y[i] == max(censored_values) and self.comment_list[i] == '<':
-                    LOQ = self.y[i]
-                    self.LOQ_lower = LOQ
-                    is_upper = False
-                i+=1
+            upper_LOQ = 2.562
+            self.LOQ_upper = upper_LOQ
         # case if "bigger than" indication in comments
         elif '>' in self.comment_list:
             i = 0
             while i < len(self.y):
                 if self.y[i] == min(censored_values) and self.comment_list[i] == '>':
-                    LOQ = self.y[i]
-                    self.LOQ_upper = LOQ
-                    is_upper = True
+                    self.LOQ_upper = self.y[i]
+                    break
                 i+=1
-        return LOQ, is_upper
+
+        # Find lower LOQ
+        lower_LOQ = np.nan
+        # smaller than global LOQ
+        if min(self.y) <= self.LOQ_lower:
+            lower_LOQ = self.LOQ_lower
+        # case if exactly 1 day
+        elif min(self.y) == 0: # 1 day
+            lower_LOQ = 0
+            self.LOQ_lower = 0
+        # case if "smaller than" indication in comments
+        elif '<' in self.comment_list:
+            i = 0
+            while i < len(self.y):
+                if self.y[i] == max(censored_values) and self.comment_list[i] == '<':
+                    self.LOQ_lower = self.y[i]
+                    break
+                i+=1
+        return upper_LOQ, lower_LOQ
 
     def logLikelihood(self, theta, sigma):
         """
@@ -168,19 +167,20 @@ class Bayesian:
         :param sigma: std half-life value to be evaluated
         :return: log_likelihood
         """
-        LOQ, is_upper = self.determine_LOQ()
+        upper_LOQ, lower_LOQ = self.determine_LOQ()
 
-        n_censored = 0
+        n_censored_upper = 0
+        n_censored_lower = 0
         y_not_cen = []
 
-        if np.isnan(LOQ):
+        if np.isnan(upper_LOQ) and np.isnan(lower_LOQ):
             y_not_cen = self.y
         else:
             for i in self.y:
-                if (is_upper and i >= LOQ): # censor above threshold
-                    n_censored +=1
-                elif (not is_upper and i <= LOQ): # censor below threshold
-                    n_censored += 1
+                if np.isnan(upper_LOQ) and i >= upper_LOQ: # censor above threshold
+                    n_censored_upper +=1
+                if np.isnan(lower_LOQ) and i <= lower_LOQ: # censor below threshold
+                    n_censored_lower += 1
                 else: # do not censor
                     y_not_cen.append(i)
 
@@ -189,11 +189,11 @@ class Bayesian:
         LL_not_cen = 0
 
         ## likelihood for not censored observations
-        if n_censored > 0 and not is_upper: # loglikelihood for left censored observations
-            LL_left_cen = n_censored * norm.logcdf(LOQ, loc=theta, scale=sigma)  # cumulative distribution function CDF
+        if n_censored_lower > 0: # loglikelihood for left censored observations
+            LL_left_cen = n_censored_lower * norm.logcdf(lower_LOQ, loc=theta, scale=sigma)  # cumulative distribution function CDF
 
-        if n_censored > 0 and is_upper: # loglikelihood for right censored observations
-            LL_right_cen = n_censored * norm.logsf(LOQ, loc=theta, scale=sigma) # survival function (1-CDF)
+        if n_censored_upper > 0: # loglikelihood for right censored observations
+            LL_right_cen = n_censored_upper * norm.logsf(upper_LOQ, loc=theta, scale=sigma) # survival function (1-CDF)
 
         if len(y_not_cen) > 0: # loglikelihood for uncensored values
             LL_not_cen = sum(norm.logpdf(y_not_cen, loc=theta, scale=sigma)) # probability density function PDF
@@ -201,15 +201,14 @@ class Bayesian:
         return (LL_left_cen + LL_not_cen + LL_right_cen)
 
     def get_prior_probability_sigma(self, sigma):
-        # if sigma is negative, return -inf
-        if sigma < self.lower_limit_sigma:
-            return -np.Inf
-        # convert mean and sd to logspace parameters
-        meanlog = np.log(self.prior_sigma_mean) - 0.5 * np.log(1 + (self.prior_sigma_std / self.prior_sigma_mean) ** 2)
-        sdlog = np.sqrt(np.log(1 + self.prior_sigma_std ** 2 / (self.prior_sigma_mean ** 2)))
+        # convert mean and sd to logspace parameters, to see this formula check
+        # https://en.wikipedia.org/wiki/Log-normal_distribution under Method of moments section
+        temp = 1 + (self.prior_sigma_std / self.prior_sigma_mean) ** 2
+        meanlog = self.prior_sigma_mean / np.sqrt(temp)
+        sdlog = np.sqrt(np.log(temp))
         # calculate of logpdf of sigma
         norm_pdf_sigma = lognorm.logpdf(sigma, s=sdlog, loc=self.lower_limit_sigma,
-                       scale=np.exp(meanlog))
+                                        scale=meanlog)
         return norm_pdf_sigma
 
     def get_prior_probability_theta(self, theta):

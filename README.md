@@ -16,3 +16,7 @@ Here's how to reproduce the data and the figures from the publication:
 cd pepper/scripts
 python bayesian_inference_main.py
 ```
+
+## Sessions 
+Use this link to start a session and test PEPPER
+[![launch - renku](https://renkulab.io/renku-badge.svg)](https://renkulab.io/projects/fenner-labs/projects/pepper/sessions/new?autostart=1)
