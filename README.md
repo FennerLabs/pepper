@@ -4,7 +4,7 @@ PEPPER is a package developed by the Fenner Labs for analyzing and modeling pers
 
 ## Installation 
 
-One main install pepper using:
+PEPPER may be installed using:
 ```
 pip install pepper
 ```
@@ -25,7 +25,6 @@ source pepper_env/bin/activate
 We have included all requirements in the pyproject.toml file so all dependencies may be installed as follows
 
 ``` 
-source pepper_env/bin/activate
 pip install .
 ```
 
