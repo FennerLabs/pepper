@@ -6,7 +6,7 @@ authors = [
     {name = "Jose Cordero",email = "jose.cordero@eawag.ch"},
     {name = "Jasmin Hafner", email="jasmin.hafner@uzh.ch"},
 ]
-license = {text = "MIT License"}
+license = {file = "LICENSE"}
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -36,3 +36,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 # package-mode = false
+
+[project.urls]
+Repository = "https://github.com/FennerLabs/pepper.git"

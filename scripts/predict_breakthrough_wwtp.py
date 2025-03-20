@@ -11,7 +11,7 @@ if __name__ == '__main__':
     # ------------------------------------#
     # Initialize with user preferences  #
     # ------------------------------------#
-    pep = Pepper(renku=True)
+    pep = Pepper(renku=False)
     pep.set_setup_name('example')
     pep.set_data_type('WWTP')
     pep.set_tag('combined_data')
