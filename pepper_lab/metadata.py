@@ -1,7 +1,7 @@
 import numpy as np
 import re
 import html
-from pepper.util import Util
+from pepper_lab.util import Util
 
 
 class Metadata:

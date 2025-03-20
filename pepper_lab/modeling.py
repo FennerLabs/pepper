@@ -7,11 +7,11 @@ import sys
 from copy import deepcopy
 import yaml
 
-from pepper.datastructure import DataStructure
-from pepper.pepper import Pepper
-from pepper.descriptors import Descriptors
-from pepper.model import Model
-from pepper.visualize import Visualize
+from pepper_lab.datastructure import DataStructure
+from pepper_lab.pepper import Pepper
+from pepper_lab.descriptors import Descriptors
+from pepper_lab.model import Model
+from pepper_lab.visualize import Visualize
 
 
 # exploratory analysis, training, evaluation

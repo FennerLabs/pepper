@@ -1,8 +1,8 @@
 import pandas as pd
-from pepper.pepper import Pepper
-from pepper.metadata import *
-from pepper.util import *
-from pepper.visualize import Visualize
+from pepper_lab.pepper import Pepper
+from pepper_lab.metadata import *
+from pepper_lab.util import *
+from pepper_lab.visualize import Visualize
 
 # sys.path.insert(0, self.get_path_to_enviPath_python() + 'enviPath_python/') # for development only
 # sys.path.insert(0, self.get_path_to_enviPath_python())
@@ -39,7 +39,7 @@ class DataStructure(Pepper):
         # Dict to store data
         self.data_dict = {}
 
-        # Attributes that we want to keep from the pepper object
+        # Attributes that we want to keep from the pepper_lab object
         self.pepper = pep
         self.tag = pep.get_tag()
         self.data_type = pep.get_data_type()

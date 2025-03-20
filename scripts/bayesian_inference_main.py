@@ -1,12 +1,12 @@
-# This is an example ML workflow using pepper
+# This is an example ML workflow using pepper_lab
 import sys
 sys.path.insert(0, '..')
-from pepper.pepper import Pepper
-from pepper.datastructure import DataStructure
-from pepper.datastructuresoil import DataStructureSoil
-from pepper.descriptors import Descriptors
-from pepper.modeling import Modeling
-from pepper.bayesian import Bayesian
+from pepper_lab.pepper import Pepper
+from pepper_lab.datastructure import DataStructure
+from pepper_lab.datastructuresoil import DataStructureSoil
+from pepper_lab.descriptors import Descriptors
+from pepper_lab.modeling import Modeling
+from pepper_lab.bayesian import Bayesian
 
 import pandas as pd
 import os

@@ -1,10 +1,10 @@
-# This is an example ML workflow using pepper
+# This is an example ML workflow using pepper_lab
 
-from pepper.pepper import Pepper
-# from pepper.datastructure import DataStructure
-from pepper.datastructurewwtp import DataStructureWWTP
-from pepper.descriptors import Descriptors
-from pepper.modeling import Modeling
+from pepper_lab.pepper import Pepper
+# from pepper_lab.datastructure import DataStructure
+from pepper_lab.datastructurewwtp import DataStructureWWTP
+from pepper_lab.descriptors import Descriptors
+from pepper_lab.modeling import Modeling
 
 
 if __name__ == '__main__':

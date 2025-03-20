@@ -35,7 +35,7 @@ dependencies = [
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-# package-mode = false
+package-mode = true
 
 [project.urls]
 Repository = "https://github.com/FennerLabs/pepper.git"

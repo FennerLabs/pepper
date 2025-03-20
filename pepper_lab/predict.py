@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 from rdkit import Chem
 
-from pepper.descriptors import Descriptors
-from pepper.pepper import Pepper
-from pepper.util import Util
+from pepper_lab.descriptors import Descriptors
+from pepper_lab.pepper import Pepper
+from pepper_lab.util import Util
 
 
 

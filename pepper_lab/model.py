@@ -30,8 +30,8 @@ from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 from collections import defaultdict
 
-from pepper.pepper import Pepper
-from pepper.visualize import Visualize
+from pepper_lab.pepper import Pepper
+from pepper_lab.visualize import Visualize
 
 
 class Model(Pepper):

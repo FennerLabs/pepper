@@ -1,7 +1,7 @@
-from pepper.pepper import Pepper
-from pepper.util import *
-from pepper.datastructure import DataStructure
-from pepper.bayesian import *
+from pepper_lab.pepper import Pepper
+from pepper_lab.util import *
+from pepper_lab.datastructure import DataStructure
+from pepper_lab.bayesian import *
 
 
 class DataStructureSediment(DataStructure):

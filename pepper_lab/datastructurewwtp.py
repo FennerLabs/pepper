@@ -3,9 +3,9 @@ import copy
 import matplotlib.pyplot as plt
 import yaml
 
-from pepper.pepper import Pepper
-from pepper.util import Util
-from pepper.datastructure import DataStructure
+from pepper_lab.pepper import Pepper
+from pepper_lab.util import Util
+from pepper_lab.datastructure import DataStructure
 
 
 import pandas as pd  # Do we need to keep importing these general packages?

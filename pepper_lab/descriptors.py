@@ -22,8 +22,8 @@ from sklearn.feature_selection import VarianceThreshold
 from enviPath_python import enviPath
 from enviPath_python.objects import Package, ParallelCompositeRule, RelativeReasoning
 
-from pepper.pepper import Pepper
-from pepper.datastructure import DataStructure
+from pepper_lab.pepper import Pepper
+from pepper_lab.datastructure import DataStructure
 
 
 class Descriptors(Pepper):
@@ -31,14 +31,14 @@ class Descriptors(Pepper):
         """
         Initiate Descriptors object
         The descriptors object contains all
-        :param pep: Pepper object used to obtain global pepper settings
+        :param pep: Pepper object used to obtain global pepper_lab settings
         """
         super().__init__()
         self.pepper = pep
         self.set_data_directory(os.path.join(self.pepper.data_directory, 'descriptors'))
         self.model_data = pd.DataFrame()
 
-        # attributes from pepper
+        # attributes from pepper_lab
         self.data_type = pep.data_type
         self.tag = pep.tag
         self.id_name = pep.id_name
