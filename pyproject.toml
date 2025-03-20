@@ -1,5 +1,5 @@
 [project]
-name = "pepper"
+name = "pepper-lab"
 version = "1.0.1"
 description = "PEPPER is a package developed by the Fenner Labs for analyzing and modeling persistence of micropollutants in different environments."
 authors = [
