@@ -39,7 +39,7 @@ class DataStructure(Pepper):
         # Dict to store data
         self.data_dict = {}
 
-        # Attributes that we want to keep from the pepper object
+        # Attributes that we want to keep from the pepper-lab object
         self.pepper = pep
         self.tag = pep.get_tag()
         self.data_type = pep.get_data_type()

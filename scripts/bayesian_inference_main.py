@@ -1,4 +1,4 @@
-# This is an example ML workflow using pepper
+# This is an example ML workflow using pepper-lab
 import sys
 sys.path.insert(0, '..')
 from pepper.pepper import Pepper

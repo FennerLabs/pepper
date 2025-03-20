@@ -361,7 +361,7 @@ class DataStructureSediment(DataStructure):
 
     # todo: Visualization
     # def visualize(self):
-    #     vis = VisualizeSediment(self.pepper, self)
+    #     vis = VisualizeSediment(self.pepper-lab, self)
     #     vis.print_violin_plot()
 
     @staticmethod

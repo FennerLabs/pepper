@@ -1,7 +1,7 @@
-# This is an example ML workflow using pepper
+# This is an example ML workflow using pepper-lab
 
 from pepper.pepper import Pepper
-# from pepper.datastructure import DataStructure
+# from pepper-lab.datastructure import DataStructure
 from pepper.datastructurewwtp import DataStructureWWTP
 from pepper.descriptors import Descriptors
 from pepper.modeling import Modeling
