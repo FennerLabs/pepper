@@ -1,6 +1,6 @@
 import os
 from pepper.pepper import Pepper
-# from pepper-lab.metadata import *
+# from pepper.metadata import *
 from pepper.util import *
 from pepper.datastructure import DataStructure
 from pepper.bayesian import *

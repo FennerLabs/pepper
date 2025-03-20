@@ -12,7 +12,7 @@ from pepper.pepper import Pepper
 import numpy as np
 from sklearn.metrics import mean_squared_error, r2_score
 
-# from pepper-lab.pepper-lab import *
+# from pepper.pepper import *
 from pepper.util import *
 
 # Umap related imports
@@ -37,7 +37,7 @@ class Visualize(Pepper):
                                              self.object_name, 'visualization', analysis_type))
 
         # used to specify output file name
-        self.tag = visualized_object.get_tag()  # Changed 'object.pepper-lab' to 'object' to control the tag based on modeling
+        self.tag = visualized_object.get_tag()  # Changed 'object.pepper' to 'object' to control the tag based on modeling
         self.data_type = visualized_object.get_data_type()
         self.setup_name = visualized_object.get_setup_name()
 

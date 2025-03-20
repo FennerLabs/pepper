@@ -31,14 +31,14 @@ class Descriptors(Pepper):
         """
         Initiate Descriptors object
         The descriptors object contains all
-        :param pep: Pepper object used to obtain global pepper-lab settings
+        :param pep: Pepper object used to obtain global pepper settings
         """
         super().__init__()
         self.pepper = pep
         self.set_data_directory(os.path.join(self.pepper.data_directory, 'descriptors'))
         self.model_data = pd.DataFrame()
 
-        # attributes from pepper-lab
+        # attributes from pepper
         self.data_type = pep.data_type
         self.tag = pep.tag
         self.id_name = pep.id_name

@@ -40,7 +40,7 @@ class Predict(Pepper):
         saved under pepper_data/predict/inputt. Mandatory columnn is 'SMILES', other columns are optional and will be
         copied to the output file.
         :param input_model_format: 'model' or 'pickle'
-        :param input_smiles_type: 'tsv' (tab-separated txt file) or 'smi' (e.g., 'c1ccccc1') or 'dataframe' (column header must match pepper-lab.smiles_name)
+        :param input_smiles_type: 'tsv' (tab-separated txt file) or 'smi' (e.g., 'c1ccccc1') or 'dataframe' (column header must match pepper.smiles_name)
         """
         print('\n############# Predict endpoints ############# ')
         # load model
