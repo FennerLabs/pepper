@@ -1101,6 +1101,10 @@ class Model(Pepper):
 
     @staticmethod
     def tree_std_to_confidence(tree_std_array):
+        # Handle single float input
+        if isinstance(tree_std_array, (float, np.float64)):
+            tree_std_array = [tree_std_array]
+
         confidence_list = []
         for tree_std in tree_std_array:
             # This values are based on observed deviations during training
