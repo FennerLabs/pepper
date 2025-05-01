@@ -8,7 +8,7 @@ class DataStructureSediment(DataStructure):
     def __init__(self, pep: Pepper):
         super().__init__(pep)
         self.set_data_directory(os.data.join(pep.data_directory,'data_structure','sediment'))
-        self.envipath_package = 'https://envipath.org/package/5c5639b0-19f8-4671-9d9a-36f05e5518df'  # bigger
+        self.envipath_package = 'https://envipath.org/package/5c5639b0-19f8-4671-9d9xa-36f05e5518df'  # bigger
         # self.envipath_package = 'https://envipath.org/package/833d620c-db01-4650-9ef8-2c5de2edf3dd'  # smaller
         self.data_type = 'sediment'
         self.data_dict = {}

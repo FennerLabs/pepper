@@ -1,5 +1,5 @@
 import os
-import pickle
+import joblib
 
 import numpy as np
 import pandas as pd
@@ -8,7 +8,6 @@ from rdkit import Chem
 from pepper_lab.descriptors import Descriptors
 from pepper_lab.pepper import Pepper
 from pepper_lab.util import Util
-
 
 
 class Predict(Pepper):
@@ -25,8 +24,8 @@ class Predict(Pepper):
         self.build_directory_structure('output')
         self.descriptors = Descriptors(pep)
         self.input_data = pd.DataFrame()
-        self.file_tag = '' #used to designate input file (for .tsv input) and output file
-        self.model = None # model used for predictions
+        self.file_tag = ''  # used to designate input file (for .tsv input) and output file
+        self.model = None  # model used for predictions
 
 
     def predict_endpoint(self, input_model, input_smiles, input_model_format='model',
@@ -41,13 +40,14 @@ class Predict(Pepper):
         copied to the output file.
         :param input_model_format: 'model' or 'pickle'
         :param input_smiles_type: 'tsv' (tab-separated txt file) or 'smi' (e.g., 'c1ccccc1') or 'dataframe' (column header must match pepper.smiles_name)
+        :param precalculated_descriptors: set to true when descriptors are provided
         """
         print('\n############# Predict endpoints ############# ')
         # load model
         if input_model_format == 'model':
             self.model = input_model
         elif input_model_format == 'pickle':
-            self.model = self.load_pickle(input_model)
+            self.model = Predict.load_pickle(input_model)
         self.tag = self.model.tag
         self.data_type = self.model.data_type
 
@@ -65,7 +65,7 @@ class Predict(Pepper):
                                               feature_space_map=self.model.descriptors.feature_space_map)
             # fetch feature space from original model and set it for descriptors of external data
             self.descriptors.define_feature_space(self.model.descriptors.get_current_feature_space())
-            self.model.predict_target_variable(self.descriptors)
+            self.model.predict_target_variable(self.descriptors, use_individual_trees=self.model.use_individual_trees)
             output_df = self.create_prediction_output_table()
         else: # if no valid smiles
             output_df = self.input_data
@@ -76,6 +76,8 @@ class Predict(Pepper):
         output_file_path = self.build_output_filename('output/'+self.file_tag)
         output_df.to_csv(output_file_path, sep='\t', index=False)
         print("Predictions are saved to {}".format(output_file_path))
+
+        return output_df
 
     def create_prediction_output_table(self): # if predictions only
         """
@@ -106,7 +108,7 @@ class Predict(Pepper):
         print("-> checking SMILES input")
         if input_smiles_type == 'tsv':
             path_to_file = self.data_directory + '/input/' + input_smiles
-            self.descriptors.model_data = pd.read_csv(path_to_file, sep='\t')
+            self.descriptors.model_data = pd.read_csv(path_to_file, sep='\t', encoding_errors='ignore')
             self.file_tag = input_smiles.split('.')[0]
         elif input_smiles_type == 'smi':
             self.descriptors.model_data = pd.DataFrame({self.smiles_name: [input_smiles]})
@@ -120,7 +122,12 @@ class Predict(Pepper):
         checked_smiles = []
         warnings = []
         for smiles in self.descriptors.model_data[self.smiles_name]:
-            mol = Chem.MolFromSmiles(smiles, sanitize=True)
+            try:
+                mol = Chem.MolFromSmiles(smiles, sanitize=True)
+            except Exception as e:
+                print('Text: {} \n not recognized as a SMILES string'.format(e))
+                mol = None
+
             if mol is None:
                 warnings.append('SMILES not valid')
                 checked_smiles.append(np.nan)
@@ -129,6 +136,7 @@ class Predict(Pepper):
                 can = Util.canonicalize_smiles(smiles)
                 checked_smiles.append(can)
                 warnings.append('')
+
         # Data to keep
         self.input_data['original_' + self.smiles_name] = self.descriptors.model_data[self.smiles_name]
         for column_name in [self.id_name, self.compound_name]:
@@ -141,5 +149,6 @@ class Predict(Pepper):
         self.descriptors.model_data[self.smiles_name] = checked_smiles
         self.descriptors.model_data.dropna(axis='rows', inplace=True)
 
+    @staticmethod
     def load_pickle(input_model):
-        return pickle.load(open(input_model, 'rb'))
+        return joblib.load(open(input_model, 'rb'))

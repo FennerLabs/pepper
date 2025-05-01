@@ -1,22 +1,20 @@
 import os
+import numpy as np
 from copy import deepcopy
-
 import pandas as pd
-import seaborn as sns
-import math
 import matplotlib
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import tick_params
+import pickle
+
+from matplotlib.pyplot import tight_layout
+from scipy.ndimage import label
 
 from pepper_lab.pepper import Pepper
-import numpy as np
 from sklearn.metrics import mean_squared_error, r2_score
-
-# from pepper_lab.pepper_lab import *
 from pepper_lab.util import *
+# from openTSNE.tsne import TSNE
 
-# Umap related imports
-import umap
+# # Umap related imports
+# import umap
 # import umap.plot
 from sklearn.cluster import KMeans
 from rdkit import Chem
@@ -37,7 +35,7 @@ class Visualize(Pepper):
                                              self.object_name, 'visualization', analysis_type))
 
         # used to specify output file name
-        self.tag = visualized_object.get_tag()  # Changed 'object.pepper_lab' to 'object' to control the tag based on modeling
+        self.tag = visualized_object.get_tag()  # Changed 'object.pepper' to 'object' to control the tag based on modeling
         self.data_type = visualized_object.get_data_type()
         self.setup_name = visualized_object.get_setup_name()
 
@@ -49,6 +47,10 @@ class Visualize(Pepper):
         self.color_palette_models = ['#5ab7e1', '#0082aa', '#fff189', '#ae7a0d', '#9fe1d5', '#003c34', '#f380f0', '#5e0062', '#d4a375', '#9b6f44', '#d5cabd', '#50434f']
         self.color_palette_descriptors = ['#f380f0', '#810082', '#74b8ac', '#005249', '#a2acbd', '#2c4a6e', '#ffedcb', '#dda11d']
         self.color_palette_data_sets = ['#60baae', '#2f4858', '#006b61', '#2f4858', '#92a19f', '#554516', '#b49205']
+
+        # openTSNE related
+        self.embedding_test = pd.DataFrame()
+        self.embedding_for_plot = pd.DataFrame()
 
     @staticmethod
     def fetch_object(self):
@@ -134,6 +136,7 @@ class Visualize(Pepper):
         for category in by_categories:
             self.scatter_box_plot(data, category, self.get_color_palette_by_category(category))
 
+
     def boxplot_CV_performance(self, categories: list):
         """
         Plot cross-validation performance for regressors x descriptors
@@ -160,12 +163,14 @@ class Visualize(Pepper):
         return pal
 
     def plot_experimental_performance_simulation(self, df):
-        figure, axes = plt.subplots(1, 2, figsize=(5, 5))  # rows, columns
+        figure, axes = plt.subplots(1, 2, figsize=(5, 4))  # rows, columns
         sns.set_context('paper')
-        ax = sns.boxplot(data=df.loc[:, ['R2']], y='R2', ax=axes[0], palette='Paired')
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=50)
-        ax = sns.boxplot(data=df.loc[:, ['RMSE']], y='RMSE', ax=axes[1], palette='Paired')
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=50)
+        df_R2 = df.loc[:, ['R2_exp', 'R2_dist']]
+        df_R2.rename(columns={'R2_exp': 'from\nreported\nvalues', 'R2_dist': 'from\ndistribution'}, inplace=True)
+        ax = sns.boxplot(data=df_R2, ax=axes[0], palette='Paired').set_title('R2')
+        df_RMSE = df.loc[:, ['RMSE_exp', 'RMSE_dist']]
+        df_RMSE.rename(columns={'RMSE_exp': 'from\nreported\nvalues', 'RMSE_dist': 'from\ndistribution'}, inplace=True)
+        ax = sns.boxplot(data=df_RMSE, ax=axes[1], palette='Paired').set_title('RMSE')
         axes[0].set_ylim(0.6, 1)
         axes[1].set_ylim(0.0, 0.35)
         figure.tight_layout()
@@ -503,7 +508,7 @@ class Visualize(Pepper):
     @staticmethod
     def get_scores(y_true, y_pred):
         if len(y_pred) < 3 :
-            return np.NaN, np.NaN
+            return np.nan, np.nan
         else:
             r2 = r2_score(y_true, y_pred)
             rmse = mean_squared_error(y_true, y_pred)
@@ -551,45 +556,90 @@ class Visualize(Pepper):
         else:
             raise NotImplementedError(f'No color defined for {feature} feature space')
 
-    #------------------------------------#
-    # UMAP related stuff  #
-    #------------------------------------#
+    # #------------------------------------#
+    # # openTSNE related stuff  #
+    # #------------------------------------#
+    # def train_my_openTSNE(self, training_fingerprint=None, training_fingerprint_directory='', load_from_csv=False):
+    #     if load_from_csv:
+    #         training_fingerprint = pd.read_csv(training_fingerprint_directory)
+    #
+    #     tsne = TSNE(
+    #         perplexity=100,
+    #         n_iter=2000,
+    #         metric='jaccard',
+    #         random_state=42,
+    #         verbose=True,
+    #     )
+    #     self.embedding_train = tsne.fit(training_fingerprint)
+    #
+    # def get_openTSNE_embedding(self, my_mfps, load_from_csv=False, load_embedding_from='directory.sav'):
+    #     if load_from_csv:
+    #         # load the model from disk
+    #         filename = 'open_tsne_trained.sav'
+    #         file_directory = os.path.join(load_embedding_from, filename)
+    #         loaded_embedding = pickle.load(open(file_directory, 'rb'))
+    #         self.embedding_train = loaded_embedding
+    #
+    #     # Get the morgan fingerprints but remove the smiles if present
+    #     if self.object.smiles_name in my_mfps.columns:
+    #         my_mfps.drop(self.object.smiles_name, axis=1, inplace=True)
+    #
+    #     # Transform the mfps
+    #     self.embedding_test = self.embedding_train.transform(my_mfps)
+    #
+    #     self.embedding_for_plot['tsne_v1'] = self.embedding_test[:, 0]
+    #     self.embedding_for_plot['tsne_v2'] = self.embedding_test[:, 1]
 
-    def get_umap_plot(self):
-        my_umap, umap_embedding = self.get_embedding()
-        ax = sns.scatterplot(x=umap_embedding[:, 0], y=umap_embedding[:, 1])
+    def get_embedding_plot(self, plot_name='opentsne_embedding'):
+        figure_directory = self.get_data_directory()
+        ax = sns.scatterplot(data=self.embedding_for_plot, x='tsne_v1', y='tsne_v2', s=1, hue='class',
+                             alpha=0.6, edgecolor='black')
         ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
-        plt.show()
+        plt.savefig(str(figure_directory) + '/{}.pdf'.format(plot_name), bbox_inches='tight', dpi=1200)
 
-    # Get the UMAP embedding
-    def get_embedding(self):
-        my_umap = umap.UMAP(random_state=42,
-                            n_neighbors=50,
-                            min_dist=0.01,
-                            n_components=2)
-        umap_embedding = my_umap.fit_transform(self.object.features)
-        return my_umap, umap_embedding
+    # def show_chemical_space(self, my_mfps, plot_name, load_from_csv=False,  load_embedding_from='embedding_path'):
+    #     self.get_openTSNE_embedding(my_mfps, load_from_csv)
+    #     self.get_embedding_plot(plot_name=plot_name)
 
-    # Display the diagnostic embedding
-
-    def show_diagnose(self, my_umap):
-        mapper = my_umap.fit(self.object.features)
-        umap.plot.diagnostic(mapper, diagnostic_type='pca')
-        plt.show()
-
-    # Use the UMAP embedding is input in KNN(n=10) to get clusters
-    def get_knn_clusters(self, umap_embedding):
-        kmeans_labels = KMeans(n_clusters=10).fit_predict(umap_embedding)
-        my_kmeans_labels = ['C_' + str(x) for x in kmeans_labels]
-        self.object.data['kmeans_labels'] = my_kmeans_labels
-        return self.object.data, my_kmeans_labels
-
-    # plot UMAP embedding with the clusters as colors
-    @staticmethod
-    def show_clusters(umap_embedding, my_kmeans_labels):
-        ax = sns.scatterplot(x=umap_embedding[:, 0], y=umap_embedding[:, 1], hue=my_kmeans_labels, palette='viridis')
-        ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
-        plt.show()
+    # #------------------------------------#
+    # # UMAP related stuff  #
+    # #------------------------------------#
+    #
+    # def get_umap_plot(self):
+    #     my_umap, umap_embedding = self.get_embedding()
+    #     ax = sns.scatterplot(x=umap_embedding[:, 0], y=umap_embedding[:, 1])
+    #     ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
+    #     plt.show()
+    #
+    # # Get the UMAP embedding
+    # def get_embedding(self):
+    #     my_umap = umap.UMAP(random_state=42,
+    #                         n_neighbors=50,
+    #                         min_dist=0.01,
+    #                         n_components=2)
+    #     umap_embedding = my_umap.fit_transform(self.object.features)
+    #     return my_umap, umap_embedding
+    #
+    # # Display the diagnostic embedding
+    #
+    # def show_diagnose(self, my_umap):
+    #     mapper = my_umap.fit(self.object.features)
+    #     umap.plot.diagnostic(mapper, diagnostic_type='pca')
+    #     plt.show()
+    #
+    # # Use the UMAP embedding is input in KNN(n=10) to get clusters
+    # def get_knn_clusters(self, umap_embedding):
+    #     kmeans_labels = KMeans(n_clusters=10).fit_predict(umap_embedding)
+    #     my_kmeans_labels = ['C_' + str(x) for x in kmeans_labels]
+    #     self.object.data['kmeans_labels'] = my_kmeans_labels
+    #     return self.object.data, my_kmeans_labels
+    #
+    # # plot UMAP embedding with the clusters as colors
+    # @staticmethod
+    # def show_clusters(umap_embedding, my_kmeans_labels):
+    #     ax = sns.scatterplot(x=umap_embedding[:, 0], y=umap_embedding[:, 1], hue=my_kmeans_labels, palette='viridis')
+    #     ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
+    #     plt.show()
 
     # Print number of molecules in each cluster
     def get_clusters_dict(self):
@@ -609,3 +659,61 @@ class Visualize(Pepper):
             m1 = Chem.MolFromSmarts(mcs1.smartsString)
             img = Draw.MolToImage(m1, legend=cluster_df[0])
             img.show()
+
+
+
+    def plot_experimental_parameter_distribution(self, df, reported_value_name):
+        """
+        This function first draws a pairplot of all environmenmental parameters specified in
+        DataStructure.experimental_parameter_names. Second, it provides a distribution plot for each specified
+        parameter separtatly
+
+        @param df: DataFrame containing the environmental parameters and the reported endpoint
+        @param reported_value_name: reported endpoint (e.g., reported logDT50 of individual experiments)
+        """
+        assert 'DataStructure' in self.object_name, \
+            "This function cannot be applied to the object {}".format(self.object_name)
+        sns.set(rc={"figure.figsize": (15, 15)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+
+        # draw pairplot for general overview and outlier detection
+        print('Drawing pairplot...')
+        output_file_path = os.path.join(self.get_data_directory(),
+                                 'pairplot_parameter_distribution_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name))
+        sns.pairplot(df, plot_kws={'s': 20}) # hue can be added, but only works with categories
+        print(f'Saving figure to {output_file_path}')
+        plt.savefig(output_file_path)
+        plt.close()
+
+        # Draw distribution (violinplot + scatter) for each parameter, indicating it's unit(s) as hue
+        print('Drawing violinplot of parameter distributions...')
+        output_file_path = os.path.join(self.get_data_directory(),
+                                 'violinplot_parameter_distribution_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name))
+        params = self.object.experimental_parameter_names
+        sns.set(rc={"figure.figsize": (10, len(params))})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        fig, axs = plt.subplots(int(round(len(params)/2)), 2)
+        legend = True
+        for ax, param in zip(fig.axes, params):
+            print('\t- '+param)
+            # todo: add units to names - needs to be checked first
+            this_df = df.loc[:,[param, reported_value_name]]
+
+            sns.stripplot(data=this_df, x=param, hue=reported_value_name, ax=ax, jitter=True,
+                          palette="icefire", alpha=0.7, size=2, dodge=True, zorder=1, legend=legend)
+            if legend:
+                ax.legend(ncol=6, markerscale=3, title='logDT50 [log(days)]:', frameon=False, loc="lower left",
+                          bbox_to_anchor=(0, 1.1), alignment='left', handletextpad=0.1, labelspacing=0.8,
+                          borderpad=0, handlelength = 1.7)
+                legend = False
+            sns.violinplot(data=this_df, x=param, ax=ax, color='grey', legend=False, fill=False)
+
+        print(f'Saving figure to {output_file_path}')
+        plt.tight_layout()
+        plt.savefig(output_file_path)
+        plt.close()

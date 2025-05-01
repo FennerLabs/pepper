@@ -55,20 +55,30 @@ class Metadata:
 
     @staticmethod
     def initiate_soil_dictionary():
-        D = {'compound_id': [], 'compound_name': [], 'smiles': [],  'scenario_id': [], 'study_name': [],
-             'halflife_raw': [], 'halflife_unit': [], 'halflife_model': [], 'halflife_comment': [], 'spike_compound': [],
-             'acidity': [], 'acidity_unit': [], 'CEC': [], 'OC': [],
-             'biomass_start': [], 'biomass_end': [], 'biomass': [], 'temperature': [], 'wst_value': [],
-             'wst_type': [], 'humidity': [], 'humidity_conditions': [], 'soil_texture': [], 'sand': [], 'silt': [],
-             'clay': []}
+        D = {'compound_id': [], 'compound_name': [], 'smiles': [],  # compound
+             'scenario_id': [], 'study_name': [], 'study_description': [], # study/scenario
+             'halflife_raw': [], 'halflife_unit': [], 'halflife_model': [], 'halflife_comment': [], # DT50
+             'spike_compound': [],
+             # additional information
+             'acidity': [], 'acidity_unit': [],
+             'temperature': [], 'temperature_unit': [],
+             'CEC': [],
+             'OC': [],
+             'biomass_start': [], 'biomass_end': [], 'biomass': [],
+             'wst_value': [],
+             'wst_type': [],
+             'humidity': [], 'humidity_conditions': [],
+             'soil_texture': [], 'sand': [], 'silt': [], 'clay': []}
         return D
 
     @staticmethod
     def initiate_sludge_dictionary():
         D = {
-            "scenario_id": [], "compound_id": [], "compound_name": [], "smiles": [],
-            "halflife_raw": [], "halflife_unit": [], "halflife_model_TF": [], "halflife_comment": [],
-            "rateconstant": [], "rateconstant_unit": [], "rateconstant_comment": [], "halflife_model": [],
+            "compound_id": [], "compound_name": [], "smiles": [], # compound
+            "scenario_id": [], 'study_name': [], 'study_description': [], # study/scenario
+            "halflife_raw": [], "halflife_unit": [], "halflife_model_TF": [], "halflife_comment": [], "halflife_model": [], # DT50
+            "rateconstant": [], "rateconstant_unit": [], "rateconstant_comment": [],  # k
+            # additional information
             "acidity": [], "acidity_unit": [],
             "temperature": [], "temperature_unit": [],
             "original_sludge_amount": [], "original_sludge_amount_unit": [],
@@ -93,12 +103,14 @@ class Metadata:
 
     @staticmethod # mention the relevant data-types
     def initiate_sediment_dictionary():
-        D = {'compound_id': [], 'compound_name': [], 'smiles': [], 'scenario_id': [],
-             'study_name': [],
+        D = {'compound_id': [], 'compound_name': [], 'smiles': [], # compound information
+             'scenario_id': [], 'study_name': [], 'study_description': [], # study description
+             # DT50
              'DT50_water': [], 'DT50_sediment': [], 'DT50_total_system': [],
              'DT50_water_comment': [], 'DT50_sediment_comment': [], 'DT50_total_system_comment': [],
              'halflife_model': [], 'halflife_comment': [], 'halflife_fit': [],
              'spike_compound': [],
+             # additional information
              'acidity_water': [], 'acidity_sediment': [], 'acidity_method': [],
              'bulk_density': [], 'bulk_density_unit': [],
              'column_height_water': [], 'column_height_sediment': [],
@@ -109,7 +121,6 @@ class Metadata:
              'oxygen_content_sediment': [],  # no oxygen content sediment value in current dataset
              'oxygen_content_sediment_unit': [],
              'CEC': [],
-             'study_description': [],
              'OC_1': [], 'OC_2': [],  # range of Organic Carbon (OC) in sediment
              'OC': [],  # OC avg (average of OC_1 and OC_2), as some erroneous values on website
              'OC_type': [],
@@ -131,11 +142,10 @@ class Metadata:
              'biomass_sediment_start': [], 'biomass_sediment_end': [],  # range of biomass at start and end in sediment
              'biomass': [],  # avg biomass (average of biomass_sediment_start and biomass_sediment_end)
              'biomass_sediment_unit': [],
-             'temperature': [],
+             'temperature': [], 'temperature_unit':[],
              'sample_location': [],
              'sediment_porosity': [],
-             'initial_sediment_mass_dry': [],
-             'initial_sediment_mass_wet': [],
+             'initial_sediment_mass_dry': [], 'initial_sediment_mass_wet': [],
              'sediment_condition': [],
              'initial_volume_water': [],
              'soil_texture': [], 'sand': [], 'silt': [], 'clay': []}
@@ -170,7 +180,6 @@ class Metadata:
             if key == "unit" or "type" in key:
                 return html.unescape(value)
             return value
-
 
     # Fetch bulk density in kg/m3
     def fetch_bulk_density(self):
@@ -351,22 +360,26 @@ class Metadata:
 
     def get_scenario_information(self, D, scenario, compound, data_type, spike_smiles, description):
         if data_type == 'soil':
-            D = self.get_soil_scenario_information(D, scenario, compound, spike_smiles)
+            D = self.get_soil_scenario_information(D, scenario, compound, spike_smiles, description)
         elif data_type == 'sediment':
             D = self.get_sediment_scenario_information(D, scenario, compound, spike_smiles, description)
         elif data_type == 'sludge':
-            D = self.get_sludge_scenario_information(D, scenario, compound, spike_smiles, description)
+            D = self.get_sludge_scenario_information(D, scenario, compound, description)
         else:
             raise NotImplementedError
         return D
 
-    def get_sludge_scenario_information(self, D, scenario, compound, spike_smiles, description):
+    def get_sludge_scenario_information(self, D, scenario, compound, description):
         if D == {}:
             D = self.initiate_sludge_dictionary()
+        # Compound informatin
         D['compound_id'].append(compound.get_id())
         D['compound_name'].append(compound.get_name())
         D['smiles'].append(compound.get_smiles())
+        # Scenario/study information
         D['scenario_id'].append(scenario.get_id())
+        D['study_name'].append(scenario.get_name().split(' - ')[0])
+        D['study_description'].append(description)
         D['acidity'].append(self.fetch_mean_value("acidity", 'lowPh', 'highPh'))
         D['acidity_unit'].append(self.fetch_normal_value("acidity", "unit", str))
         D['addition_of_nutrients'].append(self.fetch_normal_value("additionofnutrients", "additionofnutrients", str))
@@ -408,16 +421,19 @@ class Metadata:
         D['type_of_aeration'].append(self.fetch_normal_value("typeofaeration", "typeofaeration", str))
         return D
 
-    def get_soil_scenario_information(self, D, scenario, compound, spike_smiles):
+    def get_soil_scenario_information(self, D, scenario, compound, spike_smiles, description):
         # compound info
         if D == {}:
             D = self.initiate_soil_dictionary()
         D['compound_id'].append(compound.get_id())
         D['compound_name'].append(compound.get_name())
         D['smiles'].append(compound.get_smiles())
+        D['spike_compound'].append(spike_smiles)
+        # study
         D['scenario_id'].append(scenario.get_id())
         D['study_name'].append(scenario.get_name().split(' - ')[0])
-        D['spike_compound'].append(spike_smiles)
+        D['study_description'].append(description)
+
         # add halflife details
         D['halflife_raw'].append(self.fetch_mean_value("halflife", "lower", "upper")) # renamed from 'reported_DT50'
         D['halflife_unit'].append(self.fetch_normal_value("halflife", "unit", str)) # added
@@ -428,8 +444,7 @@ class Metadata:
         D['acidity'].append(self.fetch_mean_value("acidity", 'lowPh', 'highPh'))
         D['acidity_unit'].append(self.fetch_normal_value("acidity", "unit", str)) # added
         D['temperature'].append(self.fetch_mean_value("temperature", "temperatureMin", "temperatureMax"))
-        D['temperature_unit'].append(self.fetch_normal_value("temperature", "unit", str)) # added
-
+        D['temperature_unit'].append(self.fetch_normal_value("temperature", "unit", str))
 
         D['CEC'].append(self.fetch_cec())  # cation exchange capacity
         D['OC'].append(self.fetch_organic_content())  # organic content as organic carbon (oc)
@@ -476,6 +491,8 @@ class Metadata:
         D['study_name'].append(scenario.get_name().split(' - ')[0])
         D['spike_compound'].append(spike_smiles)
         #  fetch pH values for surface water and sediment, and the method used for measuring pH in sediment
+        D['temperature'].append(self.fetch_mean_value("temperature", "temperatureMin", "temperatureMax"))
+        D['temperature_unit'].append(self.fetch_normal_value("temperature", "unit", str))
         D['acidity_water'].append(self.fetch_acidity_water_phase())  # pH surface water
         D['acidity_sediment'].append(self.fetch_acidity_sediment_phase())  # pH sediment
         D['acidity_method'].append(self.fetch_acidity_method_sediment())  # pH method in sediment
@@ -551,7 +568,6 @@ class Metadata:
         # sample location
         D['sample_location'].append(self.fetch_sample_location())
         D['sediment_porosity'].append(self.fetch_sample_porosity())  # sediment porosity
-        D['temperature'].append(self.fetch_temperature())
         D['soil_texture'].append(self.fetch_soiltexture1())
         _sand, _silt, _clay = self.fetch_soiltexture2()
         D['sand'].append(_sand)

@@ -1,0 +1,11 @@
+RF:
+    name: Random Forest Regressor
+    regressor: RandomForestRegressor
+    regressor_params:
+        n_estimators: [50, 100 ]
+        max_depth: [ null, 20 ] # null translates to None
+        min_samples_split: [ 2, 5, 10 ]
+    feature_selection_method: [None]
+    feature_selection_parameters: {}
+    feature_reduction_method: [None]
+    feature_reduction_parameters: {}

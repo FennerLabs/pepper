@@ -1,6 +1,6 @@
 import os
 from pepper_lab.pepper import Pepper
-# from pepper_lab.metadata import *
+# from pepper.metadata import *
 from pepper_lab.util import *
 from pepper_lab.datastructure import DataStructure
 from pepper_lab.bayesian import *
@@ -31,6 +31,10 @@ class DataStructureSoil(DataStructure):
 
         # Soil specific attributes
         self.spike_compound_dictionary = {}
+
+        # List of experimental and environmental parameters of interest for soil
+        self.experimental_parameter_names = ['acidity', 'temperature',
+             'CEC', 'OC', 'biomass', 'wst_value', 'humidity', 'sand', 'silt', 'clay']
 
 
     def curate_annotate(self, from_csv: bool = False, from_paper: bool = False):
@@ -141,8 +145,9 @@ class DataStructureSoil(DataStructure):
                'DT50_log_bayesian_mean_std', 'acidity_std', 'CEC_log_std', 'OC_log_std', 'biomass_log_std', 'temperature_std',
                'canonical_SMILES', 'cropped_canonical_SMILES', 'cropped_canonical_SMILES_no_stereo']]
         self.cpd_data = self.cpd_data.drop_duplicates(self.id_name)
-        self.cpd_data[self.target_variable_name] = self.cpd_data['DT50_log_bayesian_mean']
-        self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_std']
+        self.cpd_data[self.target_variable_name] = self.cpd_data['DT50_log_bayesian_mean'] # estimated average
+        self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_mean_std'] # estimated uncertainty of the mean
+        # self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_std'] # estimated experimental variability, not uesd
 
         # save and describe
         print('Data frame size: ', len(self.cpd_data))
@@ -419,13 +424,14 @@ class DataStructureSoil(DataStructure):
         return new
 
     # Visualization
-    def analyze_distributions(self):
+    def analyze_target_variable_distributions(self):
         """
-        This function visualizes the distribution of the mean and the standard deviation of the target variable.
+        This function visualizes the distribution of the mean and the standard deviation of th
+        e target variable.
         Optionally, distributions obtained from Bayesian inference can be considered.
         """
         print("\n############# Analyze target variable distribution ############# ")
-        v = Visualize(self,'analyze_distributions')
+        v = Visualize(self,'analyze_target_variable_distributions')
         # distribution of target variable
         v.plot_target_variable_distribution(mean_name='DT50_log_gmean', std_name='DT50_log_std', cutoff_value = 20,
                                             include_BI = True,

@@ -10,7 +10,7 @@ RF:
         importance:
             method: importance
             min_importance: 0.005
-    feature_reduction_method: []
+    feature_reduction_method: [None]
     feature_reduction_parameters: { }
 
 GB:
@@ -25,7 +25,7 @@ GB:
         importance:
             method: importance
             min_importance: 0.005
-    feature_reduction_method: []
+    feature_reduction_method: [None]
     feature_reduction_parameters: { }
 
 MLP:

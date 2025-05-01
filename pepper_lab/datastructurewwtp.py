@@ -21,7 +21,6 @@ long_HRT_plant_list = ['S66', 'S67']
 plant_list = plants_group_1 + plants_group_2 + plants_group_3 + long_HRT_plant_list
 amar_AS_plant_list = ['lug', 'wer', 'neu', 'enk', 'kap', 'kat']
 
-
 class DataStructureWWTP(DataStructure):
     def __init__(self, pep: Pepper):
         super().__init__(pep)
@@ -535,7 +534,6 @@ class DataStructureWWTP(DataStructure):
 
         dataframe = self.raw_data.copy()
         plant_df_dic = {}
-#        default_plant_list = plants_group_2
         for plant_id in self.plant_list:
             plant_df = DataStructureWWTP.separate_data_by_plant(dataframe, str(plant_id))
             plant_df[self.id_name] = plant_df.index
@@ -823,36 +821,30 @@ class DataStructureWWTP(DataStructure):
 
         return
 
-
     def get_my_names_dict(self):
-        filename = '../config/wwtp_names.yml'
+        filename = '../data/wwtp-data/wwtp_names.yaml'
         with open(filename, 'r') as file:
             wwtp_names_dict = yaml.safe_load(file)
         if self.tag == 'aus_data':
-            return wwtp_names_dict.aus_names_dict
+            return wwtp_names_dict['aus_names_dict']
 
         if self.tag == 'amar_data':
-            from pepper.wwtp_names import amar_names_dict
-            return amar_names_dict
+            return wwtp_names_dict['amar_names_dict']
+
         if self.tag == 'snf_data':
-            from pepper.wwtp_names import snf_names_dict
-            return snf_names_dict
+            return wwtp_names_dict['snf_names_dict']
 
         if self.tag == 'aus_amar_data':
-            from pepper.wwtp_names import aus_amar_names_dict
-            return aus_amar_names_dict
+            return wwtp_names_dict['aus_amar_names_dict']
 
         if self.tag == 'galpro_data':
-            from pepper.wwtp_names import galpro_names_dict
-            return galpro_names_dict
+            return wwtp_names_dict['galpro_names_dict']
 
         if self.tag == 'swe2_data':
-            print('For now I am updating with AMAR_dict')
-            from pepper.wwtp_names import amar_names_dict
-            return amar_names_dict
+            return wwtp_names_dict['amar_names_dict']
 
         else:
-            print('names_dic not available')
+            print('Dictionary of names is not available')
             return
 
     def update_names(self, verbose: bool = False):

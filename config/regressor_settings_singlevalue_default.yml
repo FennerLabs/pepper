@@ -68,7 +68,7 @@ GPR:
     regressor_params:
         normalize_y: True
         n_restarts_optimizer: 0
-    feature_reduction_method: svd
+    feature_reduction_method: pca
     feature_reduction_parameters:
-        svd:
-            n_components: 8
+        pca:
+            n_components: 7

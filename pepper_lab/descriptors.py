@@ -31,14 +31,14 @@ class Descriptors(Pepper):
         """
         Initiate Descriptors object
         The descriptors object contains all
-        :param pep: Pepper object used to obtain global pepper_lab settings
+        :param pep: Pepper object used to obtain global pepper settings
         """
         super().__init__()
         self.pepper = pep
         self.set_data_directory(os.path.join(self.pepper.data_directory, 'descriptors'))
         self.model_data = pd.DataFrame()
 
-        # attributes from pepper_lab
+        # attributes from pepper
         self.data_type = pep.data_type
         self.tag = pep.tag
         self.id_name = pep.id_name
@@ -369,7 +369,7 @@ class Descriptors(Pepper):
         Define type of feature space to create from available descriptors
         :param keyword: type of feature space - 'all', 'maccs', 'padel', 'mordred' ,'ep_trig', 'ep_prob', 'mfps', clogp', or any combination of them (e.g., 'maccs+mordred")
         """
-        print("Define feature space:", keyword)
+        print("\tDefine feature space:", keyword)
         self.current_feature_space = keyword
 
         if keyword == 'all':
@@ -442,7 +442,6 @@ class Descriptors(Pepper):
         """
         print('-> calculate PaDEL descriptors')
         D = {}
-        smiles_list = []
         for index, row in self.model_data.iterrows():
             smiles = row[self.smiles_name]
             try:
@@ -452,11 +451,10 @@ class Descriptors(Pepper):
                       'calculated for compound: {}'.format(smiles))
             else:
                 D[smiles] = padel_descriptors
-                smiles_list.append(smiles)
-
+                
         self.padel = pd.DataFrame.from_dict(D, orient='index')
         self.padel.columns = [f'PaDEL-{column_name}' for column_name in self.padel.columns]
-        self.padel[self.smiles_name] = smiles_list
+        self.padel[self.smiles_name] = self.padel.index
         self.padel.to_csv(self.padel_tsv, sep='\t', index=False)
 
     def calculate_enviPath_descriptors(self, triggered=False, probabilities=False, feature_name_list = None):

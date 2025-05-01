@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split, cross_validate
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 # from sklearn.feature_selection import SequentialFeatureSelector # this library does not keep CV scores
 from mlxtend.feature_selection import SequentialFeatureSelector
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.decomposition import PCA
 from sklearn.decomposition import TruncatedSVD
 
@@ -99,20 +99,23 @@ class Model(Pepper):
         self.X_train_reduced = pd.DataFrame()
         self.X_test_reduced = pd.DataFrame()
 
-
         # To export results
         # original data as loaded from source
         self.y_pred_train = pd.DataFrame() # 'model not trained yet or predict method not applied to X_train'
-        self.y_pred = pd.DataFrame() #'predict method not applied yet to X_test'
+        self.y_pred = pd.DataFrame() # 'predict method not applied yet to X_test'
         self.y_pred_score = [] # predicted score for each value of y, e.g., stdev in case of GPR
         self.has_y_pred_score = False # True if a prediction score is expected from the regressor
         # fitting values
         self.fitting_data_values = pd.DataFrame()
         self.fitting_data_tsv = self.build_output_filename('training')
+
         # predicted values
         self.predicted_target_variable = pd.DataFrame()
         self.predicted_target_variable_tsv = self.build_output_filename('predictions')
         self.training_dict = {}
+
+        # If there is a predicted stdev or confidence value
+        self.use_individual_trees = False
 
         # scores
         self.train_scores = pd.DataFrame()
@@ -131,6 +134,7 @@ class Model(Pepper):
         self.selected_features_names = []
         self.settings_string = '' # regressor name and feature selection method used to build model
         self.feature_names_used_for_training = [] # list of features needed to apply model to external data
+
 
     def __deepcopy__(self, memo):
         cls = self.__class__
@@ -163,7 +167,6 @@ class Model(Pepper):
 
         # check regressor settings and put defaults if necessary
         if self.regressor is None: # set default
-            print('Warning: using default regressor RF')
             self.regressor = RandomForestRegressor(random_state=self.random_state)
             self.regressor_name = 'RandomForestRegressor'
 
@@ -188,7 +191,7 @@ class Model(Pepper):
         if self.has_target_variable_std():
             self.target_variable_std = self.data[self.target_variable_std_name]
         else:
-            self.target_variable_std = len(self.target_variable) * [np.NaN]
+            self.target_variable_std = len(self.target_variable) * [np.nan]
 
         # Drop SMILES column here
         self.features.drop(columns=self.smiles_name, inplace=True)
@@ -333,7 +336,7 @@ class Model(Pepper):
 
     def select_features(self):
         kwargs = self.feature_selection_params
-        self.settings_string = f"{self.regressor_name}_{self.feature_selection_method}"
+        self.settings_string += f"_{self.feature_selection_method}"
         if self.feature_selection_method == 'importance':
             self.select_features_by_importance(**kwargs)
         elif self.feature_selection_method == 'sequential':
@@ -753,7 +756,7 @@ class Model(Pepper):
         """
         if verbose:
             print("\n############# Training ############# ")
-
+        self.settings_string += self.regressor_name
         self.regressor.fit(self.X_train, self.y_train)
 
         self.y_pred_train = self.regressor.predict(self.X_train)
@@ -761,7 +764,7 @@ class Model(Pepper):
         self.y_pred_train.index = self.X_train.index
         if verbose:
             print("\n############# Testing ############# ")
-        self.y_pred = self.regressor.predict(self.X_test)
+        self.predict(self.X_test)
         self.y_pred = pd.DataFrame(self.y_pred)
         self.y_pred.index = self.X_test.index
 
@@ -790,9 +793,6 @@ class Model(Pepper):
         if random_state_list is None:
             random_state_list = [0]
         for random_state in random_state_list:
-            if verbose:
-                print("Random state: {}".format(random_state))
-
             if split_by_compound:
                 self.split_by_compound(state=random_state)
                 print('split was done by compound')
@@ -923,6 +923,7 @@ class Model(Pepper):
         if self.has_target_variable_std():
             self.predicted_target_variable['experimental_std'] = self.y_test_std
 
+        self.settings_string += f"_CV{random_state}"
         output_filename = os.path.join(self.get_data_directory(),
                                  'predictions_{}_{}_{}_{}.csv'.format(self.data_type, self.tag,
                                                                               self.setup_name, self.settings_string))
@@ -1040,7 +1041,7 @@ class Model(Pepper):
 
         print(f"Final hyperparameters: {self.best_regressor_params}")
 
-    def predict_target_variable(self, descriptors: Descriptor):
+    def predict_target_variable(self, descriptors: Descriptor, use_individual_trees=False):
         """
         Predict target variable for a descriptors object
         @param descriptors: Descriptor object for input SMILES
@@ -1069,7 +1070,11 @@ class Model(Pepper):
             X_reduced = X_selected
 
         # run prediction
-        self.predict(X_reduced)
+        if use_individual_trees:
+            self.predict_with_individual_trees(X_reduced)
+
+        else:
+            self.predict(X_reduced)
         # save output
         self.save_external_predictions(descriptors)
 
@@ -1077,16 +1082,55 @@ class Model(Pepper):
         if self.regressor_name == 'Gaussian Process Regressor':
             self.y_pred, self.y_pred_score = self.regressor.predict(X, return_std=True)
         elif self.regressor_name == "KNN Regressor":
-            self.y_pred = self.regressor.predict(X)
-            # get average distance to closest neighbors
-            neighbors = self.regressor.kneighbors(X,n_neighbors=self.regressor_params['n_neighbors'], return_distance=True)
-            scores = neighbors[0][:,0] # get only distance of the nearest neighbor
-            # scores = np.mean(neighbors[0], axis=1) # other option: get average scores over all neighbors,
-            # normalize scores (distances) between 0 and 1
-            self.y_pred_score = (scores-np.min(scores))/(np.max(scores)-np.min(scores))
+            self.get_KNN_pred_and_score(X)
         else:
             self.y_pred = self.regressor.predict(X)
 
+    def get_KNN_pred_and_score(self, X):
+        """
+        Predict endpoint for X with KNN and calculate the prediction score as the distance to the nearest neighbor
+        @param X: features of compounds for prediction
+        """
+        self.y_pred = self.regressor.predict(X)
+        # get average distance to closest neighbors
+        neighbors = self.regressor.kneighbors(X, n_neighbors=self.regressor_params['n_neighbors'], return_distance=True)
+        scores = neighbors[0][:, 0]  # get only distance of the nearest neighbor
+        # scores = np.mean(neighbors[0], axis=1) # other option: get average scores over all neighbors,
+        # normalize scores (distances) between 0 and 1
+        self.y_pred_score = (scores - np.min(scores)) / (np.max(scores) - np.min(scores))
+
+    @staticmethod
+    def tree_std_to_confidence(tree_std_array):
+        confidence_list = []
+        for tree_std in tree_std_array:
+            # This values are based on observed deviations during training
+            max_tree_std = 0.594320  # 90% threshold during training
+            min_tree_std = max_tree_std/10
+            if tree_std < min_tree_std:
+                confidence = 1
+            elif tree_std > max_tree_std:
+                confidence = 0
+            else:
+                confidence = (-1 / (max_tree_std - min_tree_std)) * tree_std + (max_tree_std/(max_tree_std-min_tree_std))
+            confidence_list.append(confidence)
+        return confidence_list
+
+    def predict_with_individual_trees(self, X):
+        individual_tree_predictions = np.array([
+            [tree.predict(X) for tree in self.regressor.estimators_]]).squeeze() # Shape: (n_estimators, n_test_samples)
+
+        # Calculate mean prediction and standard deviation across tree predictions for each test sample
+        y_pred_means = individual_tree_predictions.mean(axis=0)
+
+        print('Get AD metrics')
+        prediction_std_dev = individual_tree_predictions.std(axis=0)
+        confidence_std_dev = self.tree_std_to_confidence(prediction_std_dev)
+        raw_predictions = y_pred_means
+        self.y_pred = 1.48222333 * raw_predictions + 0.42978124623300695  # (adjustment with training data)
+        self.y_pred_score = confidence_std_dev
+        self.has_y_pred_score = True
+
+        return
 
     def complete_train_regressors(self):
         """

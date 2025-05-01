@@ -1,11 +1,11 @@
+from copy import deepcopy
+
 import pandas as pd
 from pepper_lab.pepper import Pepper
 from pepper_lab.metadata import *
 from pepper_lab.util import *
 from pepper_lab.visualize import Visualize
 
-# sys.path.insert(0, self.get_path_to_enviPath_python() + 'enviPath_python/') # for development only
-# sys.path.insert(0, self.get_path_to_enviPath_python())
 from enviPath_python import enviPath
 from enviPath_python.objects import *
 
@@ -39,14 +39,14 @@ class DataStructure(Pepper):
         # Dict to store data
         self.data_dict = {}
 
-        # Attributes that we want to keep from the pepper_lab object
+        # Attributes that we want to keep from the pepper object
         self.pepper = pep
         self.tag = pep.get_tag()
         self.data_type = pep.get_data_type()
+        self.compound_name = pep.get_compound_name()
         self.smiles_name = pep.get_smiles_name()
         self.target_variable_name = pep.get_target_variable_name()
         self.target_variable_std_name = pep.get_target_variable_std_name()
-        self.smiles_name = pep.get_compound_name()
         self.id_name = pep.get_id_name()
         self.random_state = pep.get_random_state()
         self.plant_name = 'plant'
@@ -103,6 +103,7 @@ class DataStructure(Pepper):
         """
         Loads the raw data from pepper_data, data or enviPath.
         :param data_type: possible values: 'raw_data', 'full_data', 'name_data', 'cpd_data', 'model_data'
+        :param source: Default (None) is to look for the local directory; use data when using a virtual environment
         """
         print("\n############# Loading data ############# ")
 
@@ -142,17 +143,14 @@ class DataStructure(Pepper):
     def load_raw_data_from_enviPath(self):
 
         eP = enviPath(self.instance_host)
-        if self.get_data_type() == 'sediment':  # Todo: remove when the water sediment package is public
-            username = input("Enter username:")
-            eP.login(username, getpass.getpass())
         pkg = Package(eP.requester, id=self.envipath_package)
         pathways = pkg.get_pathways()
-        for path in tqdm(pathways):
+        for path in tqdm(pathways[:3]):
             print(pathways.index(path), path.get_id())
             for node in path.get_nodes():
                 scenarios = node.get_scenarios()
                 for scenario in scenarios:
-                    print(scenario.get_id())
+                    # print(scenario.get_id())
                     full_scenario = Scenario(eP.requester, id=scenario.get_id())
                     temp_add_info = full_scenario.get_additional_information()
                     add_info = {ai.name: ai for ai in temp_add_info}
@@ -161,7 +159,6 @@ class DataStructure(Pepper):
                                      isinstance(obj, HalfLifeAdditionalInformation)) else False for obj in add_info.values()]):
                         # load all necessary data form enviPath
                         compound = CompoundStructure(eP.requester, id=node.get_default_structure().get_id())
-                        # TODO: Adapt Metadata object to deal with add_info as a list
                         metadata = Metadata(add_info, description)
                         try:
                             spike_smiles = CompoundStructure(
@@ -234,7 +231,7 @@ class DataStructure(Pepper):
             self.model_data[self.plant_name] = self.cpd_data[self.plant_name]
 
         self.model_data.to_csv(self.model_data_tsv, sep='\t', index=False)
-        
+
     def randomize_y(self):
         random_y = (self.model_data[self.target_variable_name].sample(frac=1, random_state=42,
                                                                       replace=False, ignore_index=False)).values
@@ -305,47 +302,48 @@ class DataStructure(Pepper):
 
 
     def experimental_performance_simulation(self,
-                                            type: str = 'experimental_values',
                                             number_of_samples: int = 10, reported_experimental_value: str = 'DT50_log'):
         """
         @param type:  'experimental_values' or 'samples_from_bayesian_distribution'
         @param number_of_samples: number of samples for performance calculation
         @param reported_experimental_value: for typ='experimental_values', the column where the reported target variables are reported
         """
-
-        print("--> Run experimental performance simulation for {}. Number of samples: {}".format(type.replace('_', ' '), number_of_samples))
-        if type == 'experimental_values':
-            r2, rmse = self.get_performance_from_experimental_values(number_of_samples, reported_experimental_value)
-        elif type == 'samples_from_bayesian_distribution':
-            r2, rmse = self.get_performance_from_distribution(number_of_samples)
-        else:
-            raise ValueError("Possible inputs for the type parameter are 'experimental_values' or 'samples_from_bayesian_distribution'")
+        print("--> Run performance simulation. Number of samples: {}".format(number_of_samples))
+        r2_exp, rmse_exp = self.get_performance_from_experimental_values(number_of_samples, reported_experimental_value)
+        r2_dist, rmse_dist = self.get_performance_from_distribution(number_of_samples)
         df = pd.DataFrame()
-        df['R2'] = r2
-        df['RMSE'] = rmse
-        v = Visualize(self, type)
-        if type == 'samples_from_bayesian_distribution':
-            v.set_setup_name(self.get_target_variable_std_name())
+        df['R2_exp'] = r2_exp
+        df['RMSE_exp'] = rmse_exp
+        df['R2_dist'] = r2_dist
+        df['RMSE_dist'] = rmse_dist
+        print(df.describe())
+        v = Visualize(self, "experimental_performance_simulation")
         v.plot_experimental_performance_simulation(df)
 
 
     def get_performance_from_distribution(self, number_of_samples):
         samples = []
         true_mean = self.cpd_data[self.target_variable_name]
+        np.random.seed(self.pepper.random_state)
         for index, row in self.cpd_data.iterrows():
             mean = row[self.target_variable_name]
             std = row[self.target_variable_std_name]
             samples.append(np.random.normal(loc=mean, scale=std, size=number_of_samples))
         r2 = []
         rmse = []
-        for sample in np.array(samples).T:
-            rmse.append(mean_squared_error(true_mean, sample))
-            r2.append(r2_score(true_mean, sample))
+        for index, sample in enumerate(np.array(samples).T): # iterate through 100 samples
+            # split sample into 5 and determine performance on each subset.
+            sample_index = np.arange(len(samples))
+            indices_list = Util.split_function(sample_index, 5, seed=index)
+            for indices in indices_list:
+                rmse.append(mean_squared_error(true_mean[indices], sample[indices]))
+                r2.append(r2_score(true_mean[indices], sample[indices]))
         return r2, rmse
 
     def get_performance_from_experimental_values(self, number_of_samples, reported_experimental_value):
         samples = []
         true_mean = []
+        np.random.seed(self.pepper.random_state)
         for index, row in self.cpd_data.iterrows():
             this_data = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
             experimental_values = this_data[reported_experimental_value].values
@@ -355,9 +353,28 @@ class DataStructure(Pepper):
         print("Found {} compounds with 3 or more data points to be considered for analysis (out of {}).".format(len(samples), len(self.cpd_data)))
         r2 = []
         rmse = []
-        for sample in np.array(samples).T:
-            rmse.append(mean_squared_error(true_mean, sample))
-            r2.append(r2_score(true_mean, sample))
+        true_mean = np.array(true_mean)
+        for index, sample in enumerate(np.array(samples).T):
+            # determine size of subsets for performance calculation. Should be in line with test set size in 5-fold CV
+            subset_length = round(len(self.cpd_data) / 5)
+            for subset_id in np.arange(5):
+                sample_index = np.arange(len(samples))
+                indices = np.random.choice(sample_index, size=subset_length)
+                rmse.append(mean_squared_error(true_mean[indices], sample[indices]))
+                r2.append(r2_score(true_mean[indices], sample[indices]))
         return r2, rmse
 
+    def analyze_parameter_distributions(self, reported_endpoint_name):
+        """
+        Print statistics and plot distributions of experimental and environmental parameters
+        """
+        print("\n############# Analyze experimental parameter distribution ############# ")
+        header_list = deepcopy(self.experimental_parameter_names)
+        header_list.append(reported_endpoint_name)
+        df_params = self.full_data.loc[:, header_list]
+        # Save statistics
+        df_params.describe()
+        # Visualize distributions
+        v = Visualize(self, 'analyze_distributions')
+        v.plot_experimental_parameter_distribution(df_params, reported_endpoint_name)
 

@@ -1,34 +1,32 @@
 [project]
 name = "pepper-lab"
-version = "1.0.1"
+version = "1.0.2"
 description = "PEPPER is a package developed by the Fenner Labs for analyzing and modeling persistence of micropollutants in different environments."
 authors = [
     {name = "Jose Cordero",email = "jose.cordero@eawag.ch"},
-    {name = "Jasmin Hafner", email="jasmin.hafner@uzh.ch"},
+    {name = "Jasmin Hafner", email="jasmin.hafner@eawag.ch"},
 ]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
-    "numpy (>=1.26.0,<3.0.0)",
+    "numpy (>=2.2.3,<3.0.0)",
     "scikit-learn (>=1.6.1,<2.0.0)",
     "rdkit (>=2024.9.5,<2025.0.0)",
     "pandas (>=2.2.3,<3.0.0)",
-    "padelpy (>=0.1.14,<0.1.15)",
+    "padelpy (>=0.1.16,<0.2.0)",
     "mordredcommunity (>=2.0.6,<3.0.0)",
     "emcee (>=3.1.6,<4.0.0)",
     "pubchempy (>=1.0.4,<2.0.0)",
-    "matplotlib (>=3.8.0,<4.0.0)",
+    "matplotlib (>=3.10.1,<4.0.0)",
     "seaborn (>=0.13.2,<0.14.0)",
     "envipath-python (>=0.2.3,<0.3.0)",
-    "tqdm (>=4.67.1,<5.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",  # related to fetching data from envipath
     "pyyaml (>=6.0.2,<7.0.0)",
     "sklearn-genetic (>=0.6.0,<0.7.0)",
     "mlxtend (>=0.23.4,<0.24.0)",
-    "opentsne (>=1.0.2,<2.0.0)",
-    "umap (>=0.1.1)"
+    "umap (>=0.1.1,<0.2.0)",
 ]
-
 
 [build-system]
  requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -39,3 +37,4 @@ package-mode = true
 
 [project.urls]
 Repository = "https://github.com/FennerLabs/pepper.git"
+

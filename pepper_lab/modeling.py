@@ -12,6 +12,7 @@ from pepper_lab.pepper import Pepper
 from pepper_lab.descriptors import Descriptors
 from pepper_lab.model import Model
 from pepper_lab.visualize import Visualize
+from pepper_lab.util import Util
 
 
 # exploratory analysis, training, evaluation
@@ -136,7 +137,7 @@ class Modeling(Pepper):
         :param config: regressor configs as defined in ./config/regressor_settings__['range'/'singlevalue']_[config].yml config file
         """
 
-        print("############# Test different setups cross-validation #############")
+        print("\n############# Test different setups cross-validation #############")
         function_name = sys._getframe().f_code.co_name  # get the name of the function
 
         # The regressor_name_list is created here by calling the setting_the_stage method
@@ -152,12 +153,14 @@ class Modeling(Pepper):
             # Iterate through regressor list
             for regressor_dict in self.regressor_list:
                 reference_model.load_settings_from_dict(regressor_dict)
-                # -----------------------------------------------------------#
-                # This is where the method differs from other similar methods
-                # -----------------------------------------------------------#
+                # no feature slection/reduction is performed in this screening
+                reference_model.feature_selection_method = None
+                reference_model.feature_reduction_method = None
                 # Define the "outer loop"
                 fold_number = 1
                 for train_index, test_index in kf.split(reference_model.data):
+
+                    print(f"{'=' * 50}\n{regressor_dict['name']}, CV {fold_number}\n{'=' * 50}")
                     # a new model object is initiated every time a new test set is defined
                     model = deepcopy(reference_model)
 
@@ -177,6 +180,8 @@ class Modeling(Pepper):
                 # -----------------------------------------------------------#
 
         self.visualize_test_scores(analysis_type=function_name, categories=['descriptors','regressor'])  #
+        # print test score overview
+        self.save_test_score_overview()
 
 
     def nested_cross_val_screening(self, regressor_name_list = ['RF', 'GB','AB', 'SVR', 'GPR', 'KNN'],
@@ -194,7 +199,7 @@ class Modeling(Pepper):
         :param config: regressor configs as defined in ./config/regressor_settings__['range'/'singlevalue']_[config].yml config file
         """
         function_name = sys._getframe().f_code.co_name  # get the name of the function
-        print("############# Nested cross-validation screening #############")
+        print("\n############# Nested cross-validation screening #############")
         self.setting_the_stage(function_name, regressor_name_list=regressor_name_list, feature_space_list=feature_space_list,
                                mode='range', config=config, load_existing=load_existing)
 
@@ -253,7 +258,7 @@ class Modeling(Pepper):
         :param config: file tag for config file with optimized regressor settings
         :return: trained Model() object
         """
-        print("############# build final, optimized model using all data #############")
+        print("\n############# build final, optimized model using all data #############")
         function_name = sys._getframe().f_code.co_name  # get the name of the function
         self.setting_the_stage(function_name, regressor_name_list = [regressor_name],
                                feature_space_list=[feature_space], mode='singlevalue', config=config)
@@ -297,7 +302,7 @@ class Modeling(Pepper):
         @param load_existing: if True, loads existing test scores for visualisation
         @return:
         """
-        print("############# Test performance vs size #############")
+        print("\n############# Test performance vs size #############")
         function_name = sys._getframe().f_code.co_name  # get the name of the function
 
         self.setting_the_stage(function_name,  regressor_name_list,  load_existing)
@@ -330,7 +335,7 @@ class Modeling(Pepper):
         :param config: dictionary defining regressor, parameters, and feature selection method
         :param load_existing: if True, loads existing test scores for visualisation
         """
-        print("############# Test performance vs size with optimized model #############")
+        print("\n############# Test performance vs size with optimized model #############")
         function_name = sys._getframe().f_code.co_name  # get the name of the function
         self.setting_the_stage(function_name, regressor_name_list = [regressor_name],
                                feature_space_list=[feature_space], mode='singlevalue', config=config)
@@ -394,7 +399,7 @@ class Modeling(Pepper):
         :param number_of_splits:
         :param load_existing:
         """
-        print("############# Test different setups - NO nested cross validation #############")
+        print("\n############# Test different setups - NO nested cross validation #############")
         function_name = sys._getframe().f_code.co_name  # get the name of the function
 
         self.setting_the_stage(function_name, regressor_list, feature_list, mode='singlevalue', config='default',
@@ -442,6 +447,14 @@ class Modeling(Pepper):
         if load_existing:
             self.build_scores_filenames(function_name)
             self.test_scores = pd.read_csv(self.test_scores_tsv, sep='\t')
+            # if regressor does not have scores, raise error
+            if 'regressor_shortname' not in self.test_scores.columns.values:
+                self.test_scores['regressor_shortname'] = Util.get_display_name(list(self.test_scores['regressor'].values))
+            for reg in regressor_name_list:
+                assert reg in self.test_scores['regressor_shortname'].values, f"No test scores found for {reg}"
+            # if there are scores for a regressor not in regressor list, drop scores for visualization
+            self.test_scores = self.test_scores[self.test_scores['regressor_shortname'].isin(regressor_name_list)]
+
         else:
             self.set_feature_space_list(feature_space_list)
             self.load_regressor_settings(mode=mode, config=config)
@@ -472,7 +485,7 @@ class Modeling(Pepper):
         :param config: 'default', or user-defined regressor setting
         """
         filename = '../config/regressor_settings_{}_{}.yml'.format(mode, config)
-        print("load regressor settings from {}".format(filename))
+        print("\tload regressor settings from {}".format(filename))
         with open(filename, 'r') as file:
             self.regressor_settings = yaml.safe_load(file)
 
@@ -618,3 +631,25 @@ class Modeling(Pepper):
             raise NotImplementedError('No plot type defined for plot_type = {}'.format(plot_type))
 
 
+    def save_test_score_overview(self, overview_by= ['descriptors', 'regressor', 'combination']):
+        """
+        Save an overview of scores with averages per combination and per descriptor
+        :param overview_by:
+        """
+        columns = overview_by + ['RMSE', 'R2']
+        df = self.test_scores.loc[:,columns]
+        for item in overview_by:
+            self.save_scores_by(df, item)
+
+
+    def save_scores_by(self, df, by):
+        result_df = pd.DataFrame()
+        result_df[by] = list(df.groupby(df[by])['R2'].mean().index)
+        result_df['R2 mean'] = df.groupby(df[by])['R2'].mean().values
+        result_df['R2 standard deviation'] = df.groupby(df[by])['R2'].std().values
+        result_df['RMSE mean'] = df.groupby(df[by])['RMSE'].mean().values
+        result_df['RMSE standard deviation'] = df.groupby(df[by])['RMSE'].std().values
+        result_df = result_df.round(2)
+        print_to = self.test_scores_tsv.replace('test_scores', f'test_scores_by_{by}')
+        result_df.to_csv(print_to, sep='\t', index=False)
+        print(f'-> Save scores summarized by {by} to {print_to}')

@@ -1,5 +1,6 @@
-# This is an example ML workflow using pepper_lab
+# This is an example ML workflow using pepper
 import sys
+import os
 sys.path.insert(0, '..')
 from pepper_lab.pepper import Pepper
 from pepper_lab.datastructure import DataStructure
@@ -9,7 +10,6 @@ from pepper_lab.modeling import Modeling
 from pepper_lab.bayesian import Bayesian
 
 import pandas as pd
-import os
 import numpy as np
 from scipy.stats import norm
 import emcee
@@ -283,6 +283,7 @@ if __name__ == '__main__':
     # set important column names
     pep.set_target_variable_name('logDT50_mean')
     pep.set_target_variable_std_name('logDT50_std')
+    pep.set_compound_name('compound_name')
     pep.set_smiles_name('SMILES')
     pep.set_id_name('ID')
     pep.set_compound_name('compound_name')

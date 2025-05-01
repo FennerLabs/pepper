@@ -135,12 +135,8 @@ class Util:
 
 
     @staticmethod
-    def get_display_name(input_str):
-        """
-        Get a display name ready for output/plotting
-        @param input_str: name of descriptor of regressor to be converted to display-ready name
-        @return:
-        """
+    def convert_name(input_str):
+        assert type(input_str) == str, f"Input must be a string, {type(input_str)} received: {input_str}"
         if input_str == 'padel':
             return 'PaDEL'
         elif input_str == 'maccs':
@@ -171,3 +167,46 @@ class Util:
             return 'all'
         else:
             return input_str
+
+    @staticmethod
+    def get_display_name(input):
+        """
+        Get a display name ready for output/plotting
+        @param input_str: name of descriptor of regressor to be converted to display-ready name, or list of names
+        @return: converted string or list
+        """
+        if type(input) == str:
+            return Util.convert_name(input)
+        elif type(input) == list:
+            output = []
+            for input_str in input:
+                output.append(Util.convert_name(input_str))
+            return output
+
+        else:
+            raise ValueError('Input must be a string or list of strings')
+
+    @staticmethod
+    def split_function(input_list, number_of_splits, seed=0):
+        """
+        This split function will return the same split on a given list for reproducibility.
+        Modify the random seed to obtain different splits
+        @param input_list: input list to be split
+        @param number_of_splits: Number of equal splits (n)
+        @param seed: random seed for the split
+        @return: list of n lists of approximately same length
+        """
+        # shuffle list based on seed
+        np.random.seed(seed)
+        input_list_copy = np.empty_like(input_list)
+        np.copyto(input_list_copy, input_list)
+        np.random.shuffle(input_list_copy)
+        # determine size of chunks
+        subslist_size = round(len(input_list_copy)/number_of_splits)
+        # determine split points (indices in input_list)
+        split_points = []
+        for index in np.arange(1, number_of_splits):
+            split_points.append(subslist_size*index)
+        # get result list of lists based on split points
+        result = np.split(input_list_copy, split_points)
+        return result
