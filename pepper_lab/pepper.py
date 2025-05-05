@@ -2,10 +2,11 @@ import pathlib
 import os
 import re
 
+
 class Pepper:
     def __init__(self, renku=False):
         if renku:
-            self.root_directory = str(pathlib.Path(__file__).parent.resolve()) + '/../'
+            self.root_directory = '/tmp/'
             self.data_directory = os.path.join(self.root_directory, 'output')
         else:
             self.root_directory = str(pathlib.Path(os.path.expanduser("~")))

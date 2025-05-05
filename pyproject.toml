@@ -1,6 +1,6 @@
 [project]
 name = "pepper-lab"
-version = "1.0.2"
+version = "1.1.0"
 description = "PEPPER is a package developed by the Fenner Labs for analyzing and modeling persistence of micropollutants in different environments."
 authors = [
     {name = "Jose Cordero",email = "jose.cordero@eawag.ch"},
