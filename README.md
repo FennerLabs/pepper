@@ -4,18 +4,28 @@ PEPPER is a package developed by the Fenner Labs for analyzing and modeling pers
 
 ## Installation 
 
-PEPPER may be installed using:
+The PEPPER library may be installed using:
 ```
-pip install pepper
+pip install pepper-lab
 ```
 
-or clone this repository
+
+## Projects
+Follow these steps to reproduce the workflows and results from previous publications:
+
+Clone the repository
 ```
 git clone https://github.com/FennerLabs/pepper
-git cd pepper
+cd pepper
 ```
 
-We also recommend creating a dedicated virtual environment with python 3.9 as base 
+Fetch the files from github
+```
+git lfs fetch --all
+git lfs pull
+```
+
+We also recommend creating a dedicated virtual environment with python 3.12 as base 
 
 ```
 python -m venv pepper_env
@@ -28,9 +38,6 @@ We have included all requirements in the pyproject.toml file so all dependencies
 pip install .
 ```
 
-After installation you may use all pepper methods and reproduceworkflows from our current projects
-
-## Projects
 
 ### Bayesian inference for soil biotransformation half-lives - Hafner et al., 2023
 Here's how to reproduce the data and the figures from the publication:
