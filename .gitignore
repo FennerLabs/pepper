@@ -27,7 +27,6 @@ scripts/jasmin_main.py
 scripts/mo_soil_data_download.py
 scripts/mo_test.py
 scripts/water_sediment_main.py
-scripts/wwtp_names.yaml
 
 
 # Byte-compiled / optimized / DLL files
