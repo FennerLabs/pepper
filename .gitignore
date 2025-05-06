@@ -45,6 +45,8 @@ launch.json
 .venv
 env/
 venv/
+venv*/
+pepper_lab_venv_313/
 ENV/
 env.bak/
 venv.bak/
@@ -1053,3 +1055,4 @@ tags
 .renku.lock
 .renku/tmp
 .renku/cache
+
