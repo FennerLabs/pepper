@@ -1,13 +1,13 @@
-"""Changelog in comparison to predict_breakthrough_wwtp.py:
+"""
+This example script reproduces our initial attempts with default regressors.
+The differences with the original example script (predict_breakthrough_wwtp.py) are the following:
 
 - No additional curation of training data
-- defulat hyperparameters
-- complete chemical space (padel, mordred, maccs, ecfp, rdkit, ep_trig)
-- Load descriptors from_csv=True (added them manually to avoid fetching them from envipath which takes time)
-- All regressors (MLR, Ridge, KRidge, SGD, LSVR, RF, AB, DT, MLP, SVR, KNN)
--  Where is GBR? and GPR? 
-
-
+- default hyperparameters
+- Simple 5-fold cross-validation (as opposed to nested cross-validation)
+- complete chemical space (['padel', 'mordred', 'maccs', 'mfps', 'rdkitfps', 'ep_trig'])
+- Load descriptors from_csv=True (added them manually to avoid fetching ep_trig from envipath which takes time)
+- All regressors (['MLR', 'Ridge', 'KRidge', 'SGD', 'LSVR', 'RF', 'GB', 'AB', 'DT', 'MLP', 'SVR', 'KNN'])
 """
 
 from pepper_lab.pepper import Pepper
@@ -33,8 +33,9 @@ if __name__ == '__main__':
     # Data import, curation and analysis #
     # ------------------------------------#
     wwtp_data = DataStructureWWTP(pep)
-    wwtp_data.load_data('name_data', source='data')
-    wwtp_data.load_data('full_data', source='data')
+    print(wwtp_data.name_data_tsv)
+    wwtp_data.load_data('name_data')
+    wwtp_data.load_data('full_data')
     wwtp_data.set_curation_type('basic_curation_nitrification_plants_only_newtest20250701')
     wwtp_data.set_plant_list(wwtp_data.ndn_plants)
     wwtp_data.curate_by_target_variable()
@@ -50,22 +51,26 @@ if __name__ == '__main__':
     # calculate descriptors
     descriptors = Descriptors(pep)
     descriptors.set_data(wwtp_data)
-    descriptors.load_descriptors(from_csv=True)
+    descriptors.load_descriptors(from_csv=True,
+                                 PaDEL=True, mordred=True,
+                                 MACCS=True, enviPath_trig=True,
+                                 mfps=True, RDKit_fps=True)
+    
     print("Descriptors loaded.")
 
     # ------------------------------------#
     # Modeling                            #
     # ------------------------------------#
 
-    wwtp_modeling = Modeling(pep, wwtp_data, descriptors, config='default_wwtp')
+    wwtp_modeling = Modeling(pep, wwtp_data, descriptors)
     print("Modeling initialized.")
-    # 
-    # desired_wwtp_model = wwtp_modeling.build_final_model(regressor_name='RF',
-    #                                                      feature_space='maccs', config='wwtp_optimized')
-    # # Alternative option
-    # # wwtp_modeling.nested_cross_val_screening(feature_space_list=['maccs',
-    # #                                                               'maccs+ep_trig',
-    # #                                                               'mordred',
-    # #                                                               'all'],
-    # #                                                                config='default_wwtp')
+
+    # wwtp_modeling.set_regressor_settings(mode='singlevalue', config='default_wwtp')
+    wwtp_modeling.test_different_setups_cross_val(regressor_name_list = ['MLR', 'Ridge', 'KRidge', 'SGD', 'LSVR', 'RF', 'GB', 'AB', 'DT', 'MLP', 'SVR', 'KNN'],
+                                            feature_space_list = ['padel', 'mordred', 'maccs', 'mfps', 'rdkitfps', 'ep_trig'],
+                                            # feature_space_list = ['maccs'],
+                                            mode='singlevalue',
+                                            config='default_wwtp')
+    
     print('done')
+    
