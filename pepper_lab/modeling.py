@@ -23,16 +23,16 @@ from sklearn.pipeline import Pipeline
 
 
 # Importing all regressors
-# from sklearn.linear_model import LinearRegression
-# from sklearn.linear_model import Ridge
-# from sklearn.linear_model import SGDRegressor
-# from sklearn.kernel_ridge import KernelRidge
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
+from sklearn.linear_model import SGDRegressor
+from sklearn.kernel_ridge import KernelRidge
 from sklearn.svm import SVR
 from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor, GradientBoostingRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.neural_network import MLPRegressor
-# from sklearn.tree import DecisionTreeRegressor
+from sklearn.tree import DecisionTreeRegressor
 
 
 class Modeling(Pepper):
@@ -518,6 +518,18 @@ class Modeling(Pepper):
             return KNeighborsRegressor()
         elif regressor_string == 'GaussianProcessRegressor':
             return GaussianProcessRegressor(random_state=self.random_state)
+        elif regressor_string == 'DecisionTreeRegressor':
+            return DecisionTreeRegressor(random_state=self.random_state)
+        elif regressor_string == 'Ridge':
+            return Ridge(random_state=self.random_state)
+        elif regressor_string == 'SGDRegressor':
+            return SGDRegressor(random_state=self.random_state)
+        elif regressor_string == 'KernelRidge':
+            return KernelRidge()
+        elif regressor_string == 'LinearRegression':
+            return LinearRegression()
+        elif regressor_string == 'LSVR':
+            return SVR(kernel='linear')  # Linear Support Vector Regressor
         else:
             raise NotImplementedError('No regressor type defined for regressor_string = {}'.format(regressor_string))
 
