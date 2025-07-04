@@ -10,7 +10,7 @@ from mlxtend.preprocessing import standardize
 from mordred import Descriptor
 from pandas.core.common import random_state
 from sklearn.model_selection import train_test_split, cross_validate
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
 # from sklearn.feature_selection import SequentialFeatureSelector # this library does not keep CV scores
 from mlxtend.feature_selection import SequentialFeatureSelector
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
@@ -973,8 +973,8 @@ class Model(Pepper):
 
         scores_dic = {
             'r2': [r2_score(y_true, y_pred)],
-            'mse': [mean_squared_error(y_true, y_pred, squared=True)],
-            'rmse': [mean_squared_error(y_true, y_pred, squared=False)],
+            'mse': [mean_squared_error(y_true, y_pred)],
+            'rmse': [root_mean_squared_error(y_true, y_pred)],
             'mae': [mean_absolute_error(y_true, y_pred)],
             'descriptors': [self.descriptors.get_current_feature_space()],
             'regressor': [self.regressor_name],
