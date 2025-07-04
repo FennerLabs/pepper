@@ -26,11 +26,11 @@ SVR:
     feature_selection_method: None
     feature_reduction_method: None
 
-
 KNN:
     name: KNN Regressor
     regressor: KNeighborsRegressor
     regressor_params:
+        n_neighbors: 5
     feature_selection_method: None
     feature_reduction_method: None
 
@@ -41,3 +41,52 @@ GPR:
     feature_selection_method: None
     feature_reduction_method: None
 
+MLR:
+    name: Multiple Linear Regressor
+    regressor: LinearRegression
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+Ridge:
+    name: Ridge
+    regressor: Ridge
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+KRidge:
+    name: KRidge
+    regressor: KernelRidge
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+SGD:
+    name: Stochastic Gradient Descent Regressor
+    regressor: SGDRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+LSVR:
+    name: Linear Support Vector Regressor
+    regressor: LSVR
+    regressor_params:
+        kernel: linear 
+    feature_selection_method: None
+    feature_reduction_method: None
+
+AB:
+    name: Ada Boost Regressor
+    regressor: AdaBoostRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+DT:
+    name: Decision Tree
+    regressor: DecisionTreeRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
