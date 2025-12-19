@@ -56,6 +56,13 @@ predict_breakthrough_wwtp.py
 
 Please refer to the main publication for further details
 
+### Confidently uncertain: Probabilistic machine learning to predict soil biotransformation half-lives - Salz et al., 2026
+All data and code needed to reproduce the analyses figures from the publication:
+```
+cd scripts
+python predict_soil_halflives.py
+```
+
 ## Sessions 
 Use this link to start a session and test PEPPER
 [![launch - renku](https://renkulab.io/renku-badge.svg)](https://renkulab.io/projects/fenner-labs/projects/pepper/sessions/new?autostart=1)
