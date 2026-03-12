@@ -2,10 +2,8 @@ RF:
     name: Random Forest Regressor
     regressor: RandomForestRegressor
     regressor_params:
-        n_estimators: [ 10, 50, 100 ]
-        max_depth: [ null, 5, 10, 20 ] # null translates to None
-        max_samples: [ 0.5, 0.7, 0.9, null ]
-        min_samples_split: [ 2, 5, 10 ]
+        n_estimators: [ 10]
+        max_depth: [ null, 5] # null translates to None
     feature_selection_method: [importance, None]
     feature_selection_parameters:
         importance:
@@ -16,9 +14,8 @@ GB:
     name: Gradient Boosting Regressor
     regressor: GradientBoostingRegressor
     regressor_params:
-        n_estimators: [ 50, 100, 200 ]
-        learning_rate: [ 0.01, 0.1, 0.2 ]
-        max_depth: [ 3, 4, 5 ]
+        n_estimators: [ 50 ]
+        learning_rate: [0.1, 0.2 ]
     feature_selection_method: [importance, None]
     feature_selection_parameters:
         importance:
@@ -44,22 +41,17 @@ SVR:
     name: Support Vector Regressor
     regressor: SVR
     regressor_params:
-        C: [ 0.1, 1, 10 ]
-        epsilon: [ 0.01, 0.1, 1 ]
-        kernel: [ 'linear', 'poly', 'rbf' ]
-    feature_reduction_method: ['pca', 'svd', None]
+        kernel: [ 'linear', 'poly' ]
+    feature_reduction_method: ['pca', None]
     feature_reduction_parameters:
-        svd:
-            n_components: [10,15,20]
         pca:
-            n_components: [10,15,20]
+            n_components: [10,15]
 KNN:
     name: KNN Regressor
     regressor: KNeighborsRegressor
     regressor_params:
-        n_neighbors: [3, 5, 7]
+        n_neighbors: [3, 5]
         weights: ['uniform', 'distance']
-        p: [1, 2]
     feature_selection_method: ['sequential', None]
     feature_selection_parameters:
         sequential:
@@ -72,10 +64,8 @@ GPR:
     regressor: GaussianProcessRegressor
     regressor_params:
         normalize_y: [True, False]
-        n_restarts_optimizer: [0, 1, 2]
-    feature_reduction_method: ['pca', 'svd', None]
+        n_restarts_optimizer: [0, 1]
+    feature_reduction_method: [svd', None]
     feature_reduction_parameters:
         svd:
-            n_components: [10,15,20,30]
-        pca:
-            n_components: [10,15,20,30]
+            n_components: [10,15,20]

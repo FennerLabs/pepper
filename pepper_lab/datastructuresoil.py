@@ -10,16 +10,16 @@ from pepper_lab.visualize import Visualize
 class DataStructureSoil(DataStructure):
     def __init__(self, pep: Pepper):
         super().__init__(pep)
-        self.set_data_directory(os.path.join(pep.data_directory,'data_structure','soil'))
+        self.set_data_directory(os.path.join(pep.data_directory,'data_structure'))
         self.smiles_name = pep.get_smiles_name()
         self.target_variable_name = pep.get_target_variable_name()
         self.target_variable_std_name = pep.get_target_variable_std_name()
         self.compound_name = pep.get_compound_name()
         self.id_name = pep.get_id_name()
-
         self.envipath_package = 'https://envipath.org/package/5882df9c-dae1-4d80-a40e-db4724271456'
         self.data_type = 'soil'
         self.data_dict = {}
+        self.build_directory_structure(self.data_type)
 
         # These are general, yet, they must be initialized with the info of the new object
         # Can we avoid defining all these for every subclass?
@@ -37,7 +37,7 @@ class DataStructureSoil(DataStructure):
              'CEC', 'OC', 'biomass', 'wst_value', 'humidity', 'sand', 'silt', 'clay']
 
 
-    def curate_annotate(self, from_csv: bool = False, from_paper: bool = False):
+    def curate_annotate(self, from_csv: bool = False, from_paper: bool = False, curate=True):
         """
         Curate SMILES, log-transform values, calculate bayesian-inferred mean/std of target variable,
         and curate information on half-lives.
@@ -53,10 +53,12 @@ class DataStructureSoil(DataStructure):
                 print("Existing curated file loaded from {}".format(self.full_data_tsv))
                 return
 
-        self.full_data = self.raw_data
+        if self.full_data.empty:
+            self.full_data = self.raw_data
         self.curate_smiles()
-
-        self.curate_halflife_data()
+        self.transform_values()
+        if curate:
+            self.curate_halflife_data()
 
     def transform_values(self, from_csv = False):
         print("\n############# Value transformation - log transformation and bayesian inference ############# ")
@@ -68,29 +70,32 @@ class DataStructureSoil(DataStructure):
         # Index compounds by smiles identity
         self.full_data[self.id_name] = self.index_compounds()
         self.full_data.sort_values(by=self.id_name)
-
+        # mandatory
         self.full_data['DT50_log'] = Util.log_transform(self.full_data['reported_DT50'])
-        self.full_data['soil_texture_main'] = self.get_main_soil_texture()
-        self.full_data['CEC_log'] = Util.log_transform(self.full_data['CEC'])
-        self.full_data['biomass_log'] = Util.log_transform(self.full_data['biomass'])
-        self.full_data['OC_log'] = Util.log_transform(self.full_data['OC'])
         self.full_data['DT50_count'] = self.count_halflives()
-        self.full_data['DT50_log_median'] = self.get_hl_median()  # median
-        self.full_data['DT50_gmean'] = self.get_geometric_mean()  # geometric mean
-        self.full_data['DT50_log_gmean'] = Util.log_transform(self.get_geometric_mean())  # log of geometric mean
+        self.full_data['DT50_log_median'] = self.get_median('reported_DT50')  # median
+        self.full_data['DT50_gmean'] = self.get_geometric_mean('reported_DT50')  # geometric mean
+        self.full_data['DT50_log_gmean'] = Util.log_transform(self.full_data['DT50_gmean'])  # log of geometric mean
         self.full_data['DT50_log_std'] = self.get_std('DT50_log')  # standard deviation hl
-        self.full_data['DT50_log_spread'] = self.get_hl_spread()
+        self.full_data['DT50_log_spread'] = self.get_endpoint_spread('DT50_log')
+
+        # get log-transformed values for additional information
+        for additional in ['CEC', 'biomass', 'OC']:
+            if additional in self.full_data.columns:
+                self.full_data[f'{additional}_log'] = Util.log_transform(self.full_data[additional])
+        if 'soil_texture' in self.full_data.columns:
+            self.full_data['soil_texture_main'] = self.get_main_soil_texture()
+
 
         bmean, bstd, bmeanstd = self.get_bayesian_stats()  # bayesian stats considering LOQs
         self.full_data['DT50_log_bayesian_mean'] = bmean
         self.full_data['DT50_log_bayesian_std'] = bstd
         self.full_data['DT50_log_bayesian_mean_std'] = bmeanstd
 
-        self.full_data['acidity_std'] = self.get_std('acidity')
-        self.full_data['CEC_log_std'] = self.get_std('CEC_log')
-        self.full_data['OC_log_std'] = self.get_std('OC_log')
-        self.full_data['biomass_log_std'] = self.get_std('biomass_log')
-        self.full_data['temperature_std'] = self.get_std('temperature')
+        # calculate standard deviations for additional information
+        for additional in ['acidity', 'CEC_log', 'OC_log', 'biomass_log', 'temperature']:
+            if additional in self.full_data.columns:
+                self.full_data[f'{additional}_std'] = self.get_std(additional)
 
         self.full_data.to_csv(self.full_data_tsv, sep='\t', index=False)
 
@@ -121,7 +126,15 @@ class DataStructureSoil(DataStructure):
         self.full_data.to_csv(self.full_data_tsv, sep='\t', index=False)
         print('Curated file saved to', self.full_data_tsv)
 
-    def reduce_for_modelling(self, from_csv = False): #todo: separate function to only load model data
+    def reduce_for_modelling(self, from_csv = False, curate=True):
+        """
+        Reduce the data set to the relevant columns for modelling and also filters out inorganic substances, fixes compound names, 
+        removes composite mixtures and removes duplicates save it to a new file. 
+        Additionally, it prepares the data to the format used for modelling.
+
+        :param from_csv: If true, load existing cpd_data_tsv files
+        
+        """
         print("\n############# Reduce data set ############# ")
         if from_csv:
             self.cpd_data = pd.read_csv(self.cpd_data_tsv, sep='\t')
@@ -131,19 +144,28 @@ class DataStructureSoil(DataStructure):
 
         self.reduce_data()
         # curate manually and save again
-        self.curate_manually()
+        if curate:
+            self.curate_manually()
         # create modelling input
         self.create_modelling_input()
 
     def reduce_data(self):
+        """
+        Reduce the data set to the relevant columns for modelling and save it to a new file."""
         # reduce dataset
         print('Data frame size: ', len(self.full_data))
-        self.cpd_data = self.full_data.loc[:,
-              [self.id_name, self.smiles_name, self.compound_name, 'compound_id', # 'node_depth', removed, not available anymore
+        columns = [self.id_name, self.smiles_name, self.compound_name,
                'DT50_count', 'DT50_gmean', 'DT50_log_median', 'DT50_log_gmean',
-               'DT50_log_spread', 'DT50_log_std', 'DT50_log_bayesian_mean', 'DT50_log_bayesian_std',
-               'DT50_log_bayesian_mean_std', 'acidity_std', 'CEC_log_std', 'OC_log_std', 'biomass_log_std', 'temperature_std',
-               'canonical_SMILES', 'cropped_canonical_SMILES', 'cropped_canonical_SMILES_no_stereo']]
+               'DT50_log_spread', 'DT50_log_std',
+                'DT50_log_bayesian_mean', 'DT50_log_bayesian_std', 'DT50_log_bayesian_mean_std',
+               'canonical_SMILES', 'cropped_canonical_SMILES', 'cropped_canonical_SMILES_no_stereo']
+        # optional - keep if present
+        for additional_column in ['pathway_name','compound_id','node_depth','source',
+                                  'acidity_std', 'CEC_log_std', 'OC_log_std', 'biomass_log_std', 'temperature_std']:
+            if additional_column in self.full_data.columns:
+                columns.append(additional_column)
+        # retain only selected columns
+        self.cpd_data = self.full_data.loc[:, columns]
         self.cpd_data = self.cpd_data.drop_duplicates(self.id_name)
         self.cpd_data[self.target_variable_name] = self.cpd_data['DT50_log_bayesian_mean'] # estimated average
         self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_mean_std'] # estimated uncertainty of the mean
@@ -157,6 +179,9 @@ class DataStructureSoil(DataStructure):
         description.to_csv(self.cpd_data_description_file, sep='\t', index=False)
 
     def curate_manually(self):
+        """
+        filters out inorganic substances, fixes compound names, removes composite mixtures and removes duplicates
+        """
         print("\n############# Manual curation ############# ")
         # Load data
         print('Original number of compounds: {}'.format(self.cpd_data.shape[0]))
@@ -226,62 +251,6 @@ class DataStructureSoil(DataStructure):
                     new.append('clay')
         return new
 
-    def get_hl_median(self):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            median = np.median(this['DT50_log'])
-            new.append(median)
-        return new
-
-    @staticmethod
-    def g_mean(x):
-        a = np.log(x)
-        return np.exp(a.mean())
-
-    def get_geometric_mean(self):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            gmean = self.g_mean(this['reported_DT50'])
-            new.append(gmean)
-        return new
-
-    def get_std(self, column):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            std = np.nanstd(this[column])
-            new.append(std)
-        return new
-
-    def get_hl_spread(self):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            spread = max(this['DT50_log']) - min(this['DT50_log'])
-            new.append(spread)
-        return new
-
-    def index_compounds(self):
-        new = []
-        this_id = 0
-        D = {}
-        for index, row in self.full_data.iterrows():
-            if row[self.smiles_name] not in D.keys():
-                this_id += 1
-                D[row[self.smiles_name]] = this_id
-                new.append(this_id)
-            else:
-                new.append(D[row[self.smiles_name]])
-        return new
-
-    def count_halflives(self):
-        new = []
-        for i in self.full_data[self.id_name]:
-            new.append(self.full_data[self.id_name].value_counts()[i])
-        return new
-
     def get_bayesian_stats(self, curate_data=False):
         mean_list = []
         std_list = []
@@ -315,20 +284,6 @@ class DataStructureSoil(DataStructure):
             std_list.append(round(std, 2))
             mean_std_list.append(round(mean_std, 2))
         return mean_list, std_list, mean_std_list
-
-    @staticmethod
-    def process_comment_list(comment_list):
-        new_list = []
-        for comment in comment_list:
-            if type(comment) == float:
-                new_list.append('')
-            elif '<' in comment:
-                new_list.append('<')
-            elif '>' in comment:
-                new_list.append('>')
-            else:
-                new_list.append('')
-        return new_list
 
     def curate_data_points(self, y, comment, is_valid, models, is_spike):
         remove_indexes = []
@@ -437,4 +392,40 @@ class DataStructureSoil(DataStructure):
                                             include_BI = True,
                                           BI_mean_name = 'DT50_log_bayesian_mean',
                                           BI_std_name = 'DT50_log_bayesian_std')
+        
+
+    def get_bayesian_stats_for_prediction(self, curate_data=False):
+        mean_list = []
+        std_list = []
+        mean_std_list = []
+        results = {}  # {'index': (mean, std, mean_std)}
+        for index, row in self.full_data.iterrows():
+            if row[self.id_name] in results.keys():
+                mean, std, mean_std = results[row[self.id_name]]
+            else:
+                this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
+                comment_list_raw = self.process_comment_list(this["halflife_comment"])
+                y_raw = np.array(this['DT50_log'])
+                if curate_data:
+                    is_valid = this['halflife_is_valid']
+                    models = this['halflife_model_category']
+                    is_spike = this['matching_spike']
+                    y, comment_list = self.curate_data_points(y_raw, comment_list_raw, is_valid, models, is_spike)
+                else:
+                    y = y_raw
+                    comment_list = comment_list_raw
+                print("\nCOMPOUND INDEX {}".format(row[self.id_name]))
+                print("Compute bayes for {} with comments {}".format(y, comment_list))
+                bayesian = Bayesian(y=y, comment_list=comment_list)
+                bayesian.set_prior_mu(mean=1.5, std=2)
+                bayesian.set_prior_sigma(mean=0.4, std=0.4)
+                bayesian.set_lower_limit_sigma(0.2)
+                mean, std, mean_std = bayesian.get_posterior_distribution()
+                results[row[self.id_name]] = (mean, std, mean_std)
+                print('mean: {}, std: {}, mean_std: {}'.format(mean, std, mean_std))
+            mean_list.append(round(mean, 2))
+            std_list.append(round(std, 2))
+            mean_std_list.append(round(mean_std, 2))
+        return mean_list, std_list, mean_std_list
+
 

@@ -114,7 +114,7 @@ class Bayesian:
         return censored_values
 
     # Class functions
-    def determine_LOQ(self):
+    def determine_local_LOQ(self):
         """
         Determines if the LOQ is upper or lower, and the value (if not default)
         :return: upper_LOQ , lower_LOQ
@@ -123,41 +123,35 @@ class Bayesian:
         censored_values = self.get_censored_values_only()
 
         # Find upper LOQ
-        upper_LOQ = np.nan
+        upper_LOQ_local = np.nan
         # bigger than global LOQ
         if max(self.y) >= self.LOQ_upper:
-            upper_LOQ = self.LOQ_upper
+            upper_LOQ_local = self.LOQ_upper
         # case if exactly 365 days
         elif max(self.y) == 2.562: # 365 days
-            upper_LOQ = 2.562
-            self.LOQ_upper = upper_LOQ
+            upper_LOQ_local = 2.562
         # case if "bigger than" indication in comments
         elif '>' in self.comment_list:
-            i = 0
-            while i < len(self.y):
-                if self.y[i] == min(censored_values) and self.comment_list[i] == '>':
-                    self.LOQ_upper = self.y[i]
+            for i, y_i in enumerate(self.y):
+                if y_i == min(censored_values) and self.comment_list[i] == '>':
+                    upper_LOQ_local = y_i
                     break
-                i+=1
 
         # Find lower LOQ
-        lower_LOQ = np.nan
+        lower_LOQ_local = np.nan
         # smaller than global LOQ
         if min(self.y) <= self.LOQ_lower:
-            lower_LOQ = self.LOQ_lower
+            lower_LOQ_local = self.LOQ_lower
         # case if exactly 1 day
         elif min(self.y) == 0: # 1 day
-            lower_LOQ = 0
-            self.LOQ_lower = 0
+            lower_LOQ_local = 0
         # case if "smaller than" indication in comments
         elif '<' in self.comment_list:
-            i = 0
-            while i < len(self.y):
-                if self.y[i] == max(censored_values) and self.comment_list[i] == '<':
-                    self.LOQ_lower = self.y[i]
+            for i, y_i in enumerate(self.y):
+                if y_i == max(censored_values) and self.comment_list[i] == '<':
+                    lower_LOQ_local = y_i
                     break
-                i+=1
-        return upper_LOQ, lower_LOQ
+        return upper_LOQ_local, lower_LOQ_local
 
     def logLikelihood(self, theta, sigma):
         """
@@ -167,7 +161,7 @@ class Bayesian:
         :param sigma: std half-life value to be evaluated
         :return: log_likelihood
         """
-        upper_LOQ, lower_LOQ = self.determine_LOQ()
+        upper_LOQ, lower_LOQ = self.determine_local_LOQ()
 
         n_censored_upper = 0
         n_censored_lower = 0
@@ -177,9 +171,9 @@ class Bayesian:
             y_not_cen = self.y
         else:
             for i in self.y:
-                if np.isnan(upper_LOQ) and i >= upper_LOQ: # censor above threshold
+                if not np.isnan(upper_LOQ) and i >= upper_LOQ: # censor above threshold
                     n_censored_upper +=1
-                if np.isnan(lower_LOQ) and i <= lower_LOQ: # censor below threshold
+                elif not np.isnan(lower_LOQ) and i <= lower_LOQ: # censor below threshold
                     n_censored_lower += 1
                 else: # do not censor
                     y_not_cen.append(i)

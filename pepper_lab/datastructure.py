@@ -5,6 +5,8 @@ from pepper_lab.pepper import Pepper
 from pepper_lab.metadata import *
 from pepper_lab.util import *
 from pepper_lab.visualize import Visualize
+from pepper_lab.bayesian import Bayesian
+
 
 from enviPath_python import enviPath
 from enviPath_python.objects import *
@@ -13,10 +15,25 @@ import getpass
 from tqdm import tqdm
 from sklearn.metrics import mean_squared_error, r2_score
 
-
 class DataStructure(Pepper):
     def __init__(self, pep: Pepper):
         super().__init__()
+
+        # Attributes that we want to keep from the pepper object
+        self.pepper = pep
+        self.tag = pep.get_tag()
+        self.setup_name = pep.get_setup_name()
+        self.data_type = pep.get_data_type()
+        self.compound_name = pep.get_compound_name()
+        self.smiles_name = pep.get_smiles_name()
+        self.target_variable_name = pep.get_target_variable_name()
+        self.target_variable_std_name = pep.get_target_variable_std_name()
+        self.compound_name = pep.get_compound_name()
+        self.id_name = pep.get_id_name()
+        self.random_state = pep.get_random_state()
+        self.plant_name = 'plant'
+        self.target_variable_list = ['endpoint']
+        self.inchikey_name = 'InChIKey'
 
         # General attributes for all datastructure classes
         self.set_data_directory(os.path.join(pep.data_directory, 'data_structure'))
@@ -39,19 +56,8 @@ class DataStructure(Pepper):
         # Dict to store data
         self.data_dict = {}
 
-        # Attributes that we want to keep from the pepper object
-        self.pepper = pep
-        self.tag = pep.get_tag()
-        self.data_type = pep.get_data_type()
-        self.compound_name = pep.get_compound_name()
-        self.smiles_name = pep.get_smiles_name()
-        self.target_variable_name = pep.get_target_variable_name()
-        self.target_variable_std_name = pep.get_target_variable_std_name()
-        self.id_name = pep.get_id_name()
-        self.random_state = pep.get_random_state()
-        self.plant_name = 'plant'
-        self.target_variable_list = ['endpoint']
-        self.inchikey_name = 'InChIKey'
+        # other files
+        self.cpd_data_description_file = self.build_output_filename('cpd_data_description')
 
         # enviPATH
         self.instance_host = "https://envipath.org"
@@ -82,18 +88,18 @@ class DataStructure(Pepper):
 
     def load_raw_data(self, source='pepper_data'):
         """
-        Loads the raw data from pepper_data, data or enviPath. todo: remove and use load_data instead
+        Loads the raw data from pepper_data, data or enviPath. todo: remove and use load_data instead.
         :param source: possible values: "pepper_data" (existing data file),
         "data" (from raw_data folder), "enviPath" (download from envipath.org)
         """
         print("\n############# Loading raw data ############# ")
 
-        if source == "pepper_data": # todo : change naming
+        if source == "pepper_data":
             assert os.path.exists(self.raw_data_tsv), "Error: file {} does not exist".format(self.raw_data_tsv)
             self.raw_data = pd.read_csv(self.raw_data_tsv, sep='\t')
         elif source == "data":
             file_string = ('raw_data' + '_{}_{}' + '.tsv').format(self.data_type, self.tag)
-            self.raw_data = pd.read_csv(os.path.join('..', 'data', file_string), sep='\t')
+            self.raw_data = pd.read_csv(os.path.join('..', 'data', self.data_type, file_string), sep='\t')
         elif source == "enviPath":
             self.load_raw_data_from_enviPath()
         else:
@@ -111,8 +117,9 @@ class DataStructure(Pepper):
 
         if source == "data":
             tsv_name = (data_type + '_' + self.setup_name + '_' + self.data_type + '_' + self.tag + '.tsv')
-            data_tsv = os.path.join('..', 'data', 'wwtp-data', tsv_name)
-
+            data_tsv = os.path.join('..', 'data', self.data_type, tsv_name)
+            if not os.path.exists(data_tsv): # for wwtp - todo: rename the 'wwtp-data folder to wwtp..?
+                data_tsv = os.path.join('..', 'data', self.data_type+'-data', tsv_name)
 
         assert os.path.exists(data_tsv), "Error: file {} does not exist".format(data_tsv)
         my_data = pd.read_csv(data_tsv, sep='\t')
@@ -122,6 +129,34 @@ class DataStructure(Pepper):
             print('{} loaded from {}'.format(data_type, data_tsv))
         else:
             print("Data could not be loaded from {}".format(data_tsv))
+
+    def reduce_for_modelling(self, column_list, target_variable, target_variable_std, from_csv = False,):
+        print("\n############# Reduce data set ############# ")
+        if from_csv:
+            self.cpd_data = pd.read_csv(self.cpd_data_tsv, sep='\t')
+            self.model_data = pd.read_csv(self.model_data_tsv, sep='\t')
+            print("Existing files loaded from {} and {}".format(self.cpd_data_tsv,self.model_data_tsv))
+            return
+
+        self.reduce_data(column_list, target_variable, target_variable_std)
+        # create modelling input
+        self.create_modelling_input()
+
+    def reduce_data(self, column_list, target_variable, target_variable_std):
+        # reduce dataset
+        print('Data frame size: ', len(self.full_data))
+
+        self.cpd_data = self.full_data.loc[:, column_list]
+        self.cpd_data = self.cpd_data.drop_duplicates(self.id_name)
+        self.cpd_data.rename(columns={target_variable: self.target_variable_name,
+                                      target_variable_std: self.target_variable_std_name},
+                             inplace=True)
+
+        # save and describe
+        print('Data frame size: ', len(self.cpd_data))
+        self.cpd_data.to_csv(self.cpd_data_tsv, sep='\t', index=False)
+        description = self.cpd_data.describe()
+        description.to_csv(self.cpd_data_description_file, sep='\t', index=False)
 
 
     def get_model_data(self):
@@ -141,35 +176,52 @@ class DataStructure(Pepper):
 
     # functions
     def load_raw_data_from_enviPath(self):
-
         eP = enviPath(self.instance_host)
         pkg = Package(eP.requester, id=self.envipath_package)
+        
         pathways = pkg.get_pathways()
-        for path in tqdm(pathways[:3]):
+        for path in tqdm(pathways):
             print(pathways.index(path), path.get_id())
-            for node in path.get_nodes():
+            path_name = path.get_name()
+
+            nodes = path.get_nodes()
+            for node in nodes:
+                
+                depth = node.get_depth()
                 scenarios = node.get_scenarios()
-                for scenario in scenarios:
-                    # print(scenario.get_id())
-                    full_scenario = Scenario(eP.requester, id=scenario.get_id())
-                    temp_add_info = full_scenario.get_additional_information()
-                    add_info = {ai.name: ai for ai in temp_add_info}
-                    description = full_scenario.get_description()  # to obtain high and low OC information
-                    if any([True if (isinstance(obj, RateConstantAdditionalInformation) or
-                                     isinstance(obj, HalfLifeAdditionalInformation)) else False for obj in add_info.values()]):
-                        # load all necessary data form enviPath
-                        compound = CompoundStructure(eP.requester, id=node.get_default_structure().get_id())
-                        metadata = Metadata(add_info, description)
-                        try:
-                            spike_smiles = CompoundStructure(
-                                eP.requester, id=add_info.get_spikecompound().get_compoundLink()).get_smiles()
-                        except:
-                            spike_smiles = ''
+                try:
+                    half_lifes = node.get_halflifes()
+                except KeyError:
+                    half_lifes = []
+                try:
+                    rateconstants = node.get_rateconstants()
+                except KeyError:
+                    rateconstants = []
+                    
+                if len(half_lifes) > 0 or len(rateconstants) > 0:
+                    for scenario in scenarios:
+                        temp_add_info = scenario.get_additional_information()
+                        add_info = {ai.name: ai for ai in temp_add_info}
 
-                        self.data_dict = metadata.get_scenario_information(self.data_dict, scenario,
-                                                                           compound, self.data_type,
-                                                                           spike_smiles, description)
+                        if add_info.get('rateconstant') is not None or add_info.get('halflife') is not None or add_info.get('halflife_ws') is not None:
 
+                            description = scenario.get_description()  # to obtain high and low OC information
+                            compound = CompoundStructure(eP.requester, id=node.get_default_structure().get_id())
+                            metadata = Metadata(add_info, description)
+                            try:
+                                spike_smiles = add_info["spikecompound"].get_compound_structure().get_smiles()
+                            except:
+                                spike_smiles = ''
+
+                            self.data_dict = metadata.get_scenario_information(self.data_dict, 
+                                                                            scenario, 
+                                                                            compound, 
+                                                                            self.data_type,
+                                                                            spike_smiles, 
+                                                                            description,
+                                                                            path_name,
+                                                                            depth                                                        
+                                                                            )
         # save data
         self.raw_data = pd.DataFrame(self.data_dict)
         self.raw_data.to_csv(self.raw_data_tsv, sep='\t', index=False)
@@ -206,6 +258,10 @@ class DataStructure(Pepper):
         If instead one would like to use the individual values for each compound in each plant,
         then set include_plant to True.
         """
+        if self.smiles_name not in self.cpd_data.columns:
+            print("Warning: no SMILES available - data cannot be used for modelling")
+            self.model_data = self.cpd_data
+            return
         if no_curation:
             self.model_data = self.cpd_data
             return
@@ -216,6 +272,7 @@ class DataStructure(Pepper):
             return
 
         self.cpd_data = self.cpd_data.sample(frac=1, random_state=42, ignore_index=True)
+        
 
         self.model_data = self.cpd_data.loc[:, [self.id_name,
                                                 self.smiles_name,
@@ -230,6 +287,7 @@ class DataStructure(Pepper):
         if include_plant:
             self.model_data[self.plant_name] = self.cpd_data[self.plant_name]
 
+        
         self.model_data.to_csv(self.model_data_tsv, sep='\t', index=False)
 
     def randomize_y(self):
@@ -293,7 +351,7 @@ class DataStructure(Pepper):
             if row['cropped_canonical_SMILES'] != cropped_canonical_smiles:
                 cropped_canonical_smiles = row['cropped_canonical_SMILES']
                 cropped_canonical_smiles_no_stereo = Util.canonicalize_smiles(
-                    Util.remove_stereo_info(cropped_canonical_smiles))
+                    Util.remove_stereo_info(Util.remove_stereochemistry(cropped_canonical_smiles)))
             new.append(cropped_canonical_smiles_no_stereo)
         return new
 
@@ -364,7 +422,7 @@ class DataStructure(Pepper):
                 r2.append(r2_score(true_mean[indices], sample[indices]))
         return r2, rmse
 
-    def analyze_parameter_distributions(self, reported_endpoint_name):
+    def analyze_parameter_distributions(self, reported_endpoint_name, **kwargs):
         """
         Print statistics and plot distributions of experimental and environmental parameters
         """
@@ -376,5 +434,118 @@ class DataStructure(Pepper):
         df_params.describe()
         # Visualize distributions
         v = Visualize(self, 'analyze_distributions')
-        v.plot_experimental_parameter_distribution(df_params, reported_endpoint_name)
+        v.plot_experimental_parameter_distribution(df_params, reported_endpoint_name, **kwargs)
 
+
+    # helper functions
+    def count_halflives(self):
+        new = []
+        for i in self.full_data[self.id_name]:
+            new.append(self.full_data[self.id_name].value_counts()[i])
+        return new
+
+    def get_endpoint_spread(self, endpoint_name):
+        new = []
+        for index, row in self.full_data.iterrows():
+            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
+            spread = max(this[endpoint_name]) - min(this[endpoint_name])
+            new.append(spread)
+        return new
+
+    def get_geometric_mean(self, endpoint_name):
+        new = []
+        for index, row in self.full_data.iterrows():
+            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
+            gmean = self.g_mean(this[endpoint_name])
+            new.append(gmean)
+        return new
+
+    def get_median(self, endpoint_name):
+        new = []
+        for index, row in self.full_data.iterrows():
+            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
+            median = np.median(this[endpoint_name])
+            new.append(median)
+        return new
+
+    def get_std(self, endpoint):
+        new = []
+        for index, row in self.full_data.iterrows():
+            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
+            std = np.nanstd(this[endpoint])
+            new.append(std)
+        return new
+
+    def index_compounds(self, on='smiles'):
+        """
+
+        @param on: 'smiles' by default, or 'name' if smiles not available
+        @return: list of indices
+        """
+        if on == 'smiles':
+            column = self.smiles_name
+        elif on == 'name':
+            column = self.compound_name
+        else:
+            raise NotImplementedError('Can only index compounds on smiles or compound names')
+        new = []
+        this_id = 0
+        D = {}
+        for index, row in self.full_data.iterrows():
+            if row[column] not in D.keys():
+                this_id += 1
+                D[row[column]] = this_id
+                new.append(this_id)
+            else:
+                new.append(D[row[column]])
+        return new
+
+
+    def get_bayesian_stats(self, target_variable, comment,
+                           mu_mean, mu_std, sigma_mean, sigma_std, sigma_lower_limit):
+        mean_list = []
+        std_list = []
+        mean_std_list = []
+        results = {}  # {'index': (mean, std)}
+        for index, row in tqdm(self.full_data.iterrows()):
+            if row[self.id_name] in results.keys():
+                mean, std = results[row[self.id_name]]
+            else:
+                df = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
+                y = np.array(df[target_variable])
+                kinetics_comments = df[comment].to_list() # censoring information
+                print("\nCOMPOUND canonical_SMILES {}".format(row[self.id_name]))
+                print("Compute bayes for {} with comments {}".format(y, kinetics_comments))
+                bayesian = Bayesian(y=y, comment_list=kinetics_comments)
+                bayesian.set_prior_mu(mean=mu_mean, std=mu_std)
+                bayesian.set_prior_sigma(mean=sigma_mean, std=sigma_std)
+                bayesian.set_lower_limit_sigma(sigma_lower_limit)
+
+                mean, std, mean_std= bayesian.get_posterior_distribution()
+                results[row[self.id_name]] = (mean, std)
+                print('mean: {}, std: {}, mean_std: {}'.format(mean, std, mean_std))
+            mean_list.append(round(mean, 2))
+            std_list.append(round(std, 2))
+            mean_std_list.append(round(mean_std, 2))
+
+        return mean_list, std_list, mean_std_list
+
+
+    @staticmethod
+    def g_mean(x):
+        a = np.log(x)
+        return np.exp(a.mean())
+
+    @staticmethod
+    def process_comment_list(comment_list):
+        new_list = []
+        for comment in comment_list:
+            if type(comment) == float:
+                new_list.append('')
+            elif '<' in comment:
+                new_list.append('<')
+            elif '>' in comment:
+                new_list.append('>')
+            else:
+                new_list.append('')
+        return new_list

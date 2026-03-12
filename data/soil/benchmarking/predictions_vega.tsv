@@ -1,0 +1,26 @@
+ID	tId	SMILES	Persistence (soil) model (IRFMN)-assessment	Persistence (soil) model (IRFMN)-prediction	Persistence (soil) quantitative model (IRFMN)-assessment	Persistence (soil) quantitative model (IRFMN)-prediction [log(days)]
+1	Molecule 1	O=C(Nc1ccc(c(c1)C(F)(F)F)Cl)Nc3ccc(Oc2ccnc(c2)C(=O)NC)cc3(F)	nP/P (MODERATE reliability)	nP/P	117 days (LOW reliability)	2.07
+2	Molecule 2	O=C1C(=O)C(=C(O)c2ccccc12)C4CCC(c3ccc(cc3)Cl)CC4	nP (MODERATE reliability)	nP	2272 days (LOW reliability)	3.36
+3	Molecule 3	O=C(NCc1ccc(F)cc1(F))C4=CN3C(C(=O)N2C(OCCC2C)C3)=C([O-])C4(=O)	nP (LOW reliability)	nP	34 days (LOW reliability)	1.53
+4	Molecule 4	n1cccc3c1N4CCN(C)CC4(c2ccccc2C3)	nP (LOW reliability)	nP	101 days (LOW reliability)	2
+5	Molecule 5	N#Cc1cccc(c1)C(Cc2ccc(cc2)Cl)C(NC(=O)C(Oc3ncc(cc3)C(F)(F)F)(C)C)C	nP (LOW reliability)	nP	2272 days (LOW reliability)	3.36
+6	Molecule 6	O=C(OCC)NC3CCC4C(C=Cc1ncc(cc1)c2cccc(F)c2)C5C(OC(=O)C5(CC4(C3)))C	nP (MODERATE reliability)	nP	22 days (LOW reliability)	1.35
+7	Molecule 7	O=S(=O)(c4ccccc4(Nc1nc(ncc1Cl)Nc2cc(c(cc2(OC(C)C))C3CCNCC3)C))C(C)C	P/vP (LOW reliability)	P/vP	117 days (LOW reliability)	2.07
+8	Molecule 8	O=C(Nc1cc(cc(c1)C(F)(F)F)n2cnc(c2)C)c3ccc(c(c3)Nc4nccc(n4)c5cnccc5)C	P/vP (LOW reliability)	P/vP	23 days (LOW reliability)	1.36
+9	Molecule 9	O=C(C=Cc1ccc(cc1)CNCCc2c3ccccc3([nH]c2C))NO	nP/P (MODERATE reliability)	nP/P	8 days (LOW reliability)	0.89
+10	Molecule 10	O=CNC(C(=O)OC(CCCCCCCCCCC)CC1OC(=O)C1(CCCCCC))CC(C)C	nP (MODERATE reliability)	nP	23 days (LOW reliability)	1.36
+11	Molecule 11	O=C(c2c[nH]c1ncc(cc12)c3ccc(cc3)Cl)c4c(F)ccc(NS(=O)(=O)CCC)c4(F)	P/vP (LOW reliability)	P/vP	117 days (LOW reliability)	2.07
+12	Molecule 12	O=C(OC)NC(C(=O)N9CCCC9(c1ncc([nH]1)c8ccc3c(OC(c2ccccc2)n4c5ccc(cc5(cc34))c6cnc([nH]6)C7N(C(=O)C(NC(=O)OC)C(C)C)CCC7)c8))C(C)C	nP (LOW reliability)	nP	23 days (LOW reliability)	1.36
+13	Molecule 13	O([Si](O[Si](C)(C)C)(C)C)[Si](O[Si](C)(C)C)(C)C	N/A	Non Predicted	24 days (LOW reliability)	1.37
+14	Molecule 14	c1ccc(cc1)C(c2ccc(cc2)Nc3ccc(cc3)C(c4ccccc4)(C)C)(C)C	N/A	Non Predicted	67 days (LOW reliability)	1.83
+15	Molecule 15	O2Cc1cc3c(cc1C(C)C2)C(C)(C)C(C)C3(C)C	nP (LOW reliability)	nP	23 days (LOW reliability)	1.36
+16	Molecule 16	O([Si](O[Si](C)(C)C)(C)C)[Si](C)(C)C	N/A	Non Predicted	24 days (LOW reliability)	1.37
+17	Molecule 17	c1ccc(cc1)Nc2ccc(cc2)NC(C)CCC(C)C	nP (LOW reliability)	nP	7 days (LOW reliability)	0.86
+18	Molecule 18	n2c1ccccc1sc2SN(C3CCCCC3)C4CCCCC4	nP (LOW reliability)	nP	71 days (LOW reliability)	1.85
+19	Molecule 19	O(C)C(C)(C)C	nP (EXPERIMENTAL value)	nP	11 days (LOW reliability)	1.03
+20	Molecule 20	O=C(Nc1cccc2c1C(C)CC2(C)C)c3cn(nc3C(F)F)C	P/vP (LOW reliability)	P/vP	23 days (LOW reliability)	1.36
+21	Molecule 21	O=C(N4CCC(c1nc(cs1)C3=NOC(c2c(OS(=O)(=O)C)cccc2Cl)C3)CC4)Cn5nc(cc5C(F)F)C(F)F	nP (LOW reliability)	nP	217 days (LOW reliability)	2.34
+22	Molecule 22	O=CC=Cc1ccccc1	nP (MODERATE reliability)	nP	13 days (LOW reliability)	1.1
+23	Molecule 23	O=C(O)C=Cc1ccccc1	nP (MODERATE reliability)	nP	13 days (LOW reliability)	1.1
+24	Molecule 24	O=C(NCc1ccccc1)C(Oc2ccc(F)c(c2)C(F)(F)F)CC	nP (LOW reliability)	nP	8 days (LOW reliability)	0.89
+25	Molecule 25	O=C(OC(C)CCCCCC(C)CC)CC	nP (GOOD reliability)	nP	26 days (LOW reliability)	1.41

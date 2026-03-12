@@ -2,7 +2,7 @@ import getpass
 import os
 import pandas as pd
 import numpy as np
-from rdkit import Chem
+from rdkit import Chem, DataStructs
 from rdkit.Chem import MACCSkeys
 from rdkit.Chem import PandasTools
 
@@ -14,6 +14,8 @@ from mordred import Calculator, descriptors
 
 from rdkit.Chem import AllChem as ac
 from rdkit.Chem import rdFingerprintGenerator
+from rdkit.Chem import Descriptors as rdkitDescriptors
+from rdkit.Avalon import pyAvalonTools
 
 from sklearn.feature_selection import VarianceThreshold
 
@@ -45,6 +47,7 @@ class Descriptors(Pepper):
         self.smiles_name = pep.smiles_name
 
         # Storing data for the different types of descriptors
+        self.build_directory_structure(self.data_type)
         self.maccs = pd.DataFrame()
         self.maccs_tsv = self.build_output_filename('MACCS')
         self.padel = pd.DataFrame()
@@ -65,33 +68,42 @@ class Descriptors(Pepper):
         self.plant_fp_tsv = self.build_output_filename('plant_fp')
         self.rdkitfps = pd.DataFrame()
         self.rdkitfps_tsv = self.build_output_filename('RDKit_fps')
+        self.rdkitdesc = pd.DataFrame()
+        self.rdkitdesc_tsv = self.build_output_filename('RDKit_descriptors')
+        self.avalonfps = pd.DataFrame()
+        self.avalonfps_tsv = self.build_output_filename('avalonfps')
 
         self.features = pd.DataFrame()
 
 
         self.feature_space_list = ['maccs', 'padel', 'ep_trig',
                               'ep_prob', 'mfps', 'mordred',
-                              'clogp', 'plant_fp', 'rdkitfps']
+                              'clogp', 'plant_fp', 'rdkitfps', 'rdkitdesc', 'avalonfps']
         self.current_feature_space = '' # e.g., 'maccs', 'padel+ep_trig', 'all'
         self.feature_space_map = {} # links feature names to feature space for visualisation e.g., {'struct-1: 'maccs'}
 
         # enviPath settings
         #####################
         # Default package for triggered rules: EAWAG-BBD
-        self.ep_trig_rule_package = 'http://envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1'
+        self.ep_trig_rule_package = 'http://legacy.envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1'
         # Alternatively, the following package can be used. It includes the newer soil-specific rules.
         # For this, access and login is currently required:
         # self.ep_trig_rule_package = 'https://envipath.org/package/55fa3a97-db19-442f-8108-954f7be95e1c'
 
-        # Default model for rule probability calculation: BBD - ECC - Multi - 2023-09-05
-        self.ep_prob_relative_reasoning_id = 'https://envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1/' \
+        # Legacy model for rule probability calculation on legacy.envipath.org: BBD - ECC - Multi - 2023-09-05
+        self.ep_prob_relative_reasoning_id = 'https://legacy.envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1/' \
                                              'relative-reasoning/23e1b2ec-dcc0-4389-9b65-afd52bd72e27'
+        # Default model on envipath.org
+        # self.ep_prob_relative_reasoning_id = ('https://envipath.org/package/134886bb-b52e-4ad6-91d3-a02cecde6d95/' \
+        #                                       'model/16790fdd-aafe-4282-9224-90d006c04416')
 
         # Default enviPath instance
-        self.instance_host = 'https://envipath.org/'
+        # self.instance_host = 'https://envipath.org/api/legacy/'
+        # Legacy enviPath instance
+        self.instance_host = 'https://legacy.envipath.org/'
 
-        # For the default settings, no login to enviPath is required. However, if the package or relative reasoning
-        # for ep_trig or ep_prob is not public, then this ep_login_required should be set to True
+        # Login is required for all enviPath as of 19.01.2026.
+        # When using the legacy enviPath (legacy.envipath.org), ep_login_required can be turned off
         self.ep_login_required = False
 
     def set_data(self, data: DataStructure):
@@ -109,7 +121,9 @@ class Descriptors(Pepper):
     def load_descriptors(self, from_csv=False,
                          PaDEL=False, mordred=False,
                          MACCS=False, enviPath_prob=False, enviPath_trig=False,
-                         mfps=False, RDKit_fps=False,
+                         mfps=False, RDKit_fps=False, 
+                         RDKit_descriptors=False,
+                         avalonfps=False,
                          plant_fingerprints=False,
                          Koc=False,  clogp=False,
                          load_by_feature_name = False,
@@ -127,6 +141,7 @@ class Descriptors(Pepper):
         :param mfps: if True, apply Morgan (m) Fingerprints (fps) with radius = 2
         :param clogp: if True, retrieve cLogP from database (originally calculated using OPERA)
         :param RDKit_fps: if True, calculate rdkit fingerprints
+        :param RDKit_descriptors: if True, calculate rdkit molecular descriptors
         :param plant_fingerprints: if True, include fingerprints to describe plants
         :param load_by_feature_name: list of feature names to be loaded. If provided, only specified features are calculated
         :param feature_space_map: feature space map from another Descriptors object
@@ -163,10 +178,16 @@ class Descriptors(Pepper):
                 mordred = True
             if 'rdkitfps' in features_to_be_calculated.keys():
                 RDKit_fps = True
+            if 'rdkitdesc' in features_to_be_calculated.keys():
+                RDKit_descriptors = True
+            if 'avalonfps' in features_to_be_calculated.keys():
+                avalonfps = True
+            
 
         if MACCS: # maccs fingerprints are always calculated as a whole matrix
             self.maccs_tsv = self.build_output_filename('MACCS')
             if from_csv:
+                print(f"Loading features from {self.maccs_tsv}")
                 self.maccs = pd.read_csv(self.maccs_tsv, sep='\t')
             elif not self.model_data.empty:
                 self.calculate_MACCS_fingerprints()
@@ -176,6 +197,7 @@ class Descriptors(Pepper):
 
         if PaDEL:
             if from_csv:
+                print(f"Loading features from {self.padel_tsv}")
                 self.padel = pd.read_csv(self.padel_tsv, sep='\t')
                 # temporary workaround to allow loading precalculated descriptor files without the "PaDEL" tag
                 # todo: remove workaround
@@ -191,6 +213,7 @@ class Descriptors(Pepper):
         if mordred:
             self.mordred_tsv = self.build_output_filename('mordred')
             if from_csv:
+                print(f"Loading features from {self.mordred_tsv}")
                 self.mordred = pd.read_csv(self.mordred_tsv, sep='\t')
             elif load_by_feature_name and not self.model_data.empty:
                 self.calculate_mordred_descriptors(features_to_be_calculated['mordred'])
@@ -204,6 +227,7 @@ class Descriptors(Pepper):
             if from_csv:
                 self.ep_trig_tsv = self.build_output_filename('enviPath_triggered')
                 self.ep_trig = pd.read_csv(self.ep_trig_tsv, sep='\t', index_col=False)
+                print(f"Loading features from {self.ep_trig_tsv}")
             elif load_by_feature_name and not self.model_data.empty:
                 self.calculate_enviPath_descriptors(triggered=True,
                                                     feature_name_list = features_to_be_calculated['ep_trig'])
@@ -217,6 +241,7 @@ class Descriptors(Pepper):
             if from_csv:
                 self.ep_prob_tsv = self.build_output_filename('enviPath_probability')
                 self.ep_prob = pd.read_csv(self.ep_prob_tsv, sep='\t')
+                print(f"Loading features from {self.ep_prob_tsv}")
             elif load_by_feature_name and not self.model_data.empty:
                 self.calculate_enviPath_descriptors(probabilities=True,
                                                     feature_name_list = features_to_be_calculated['ep_prob'])
@@ -228,6 +253,7 @@ class Descriptors(Pepper):
 
         if Koc:
             if from_csv:
+                print(f"Loading features from {self.koc_tsv}")
                 self.koc_tsv = self.build_output_filename('Koc')
                 self.koc = pd.read_csv(self.koc_tsv, sep='\t')  # todo: add method to "clean" the opera output
             else:
@@ -240,6 +266,7 @@ class Descriptors(Pepper):
             if from_csv:
                 self.mfps_tsv = self.build_output_filename('mfps')
                 self.mfps = pd.read_csv(self.mfps_tsv, sep='\t')
+                print(f"Loading features from {self.mfps_tsv}")
             elif load_by_feature_name and not self.model_data.empty:
                 self.calculate_morgan_fingerprints(features_to_be_calculated['mfps'])
             elif not self.model_data.empty:
@@ -252,18 +279,47 @@ class Descriptors(Pepper):
             if from_csv:
                 self.rdkitfps_tsv = self.build_output_filename('RDKit_fps')
                 self.rdkitfps = pd.read_csv(self.rdkitfps_tsv, sep='\t')
+                print(f"Loading features from {self.rdkitfps_tsv}")
             elif load_by_feature_name and not self.model_data.empty:
-                self.calculate_rdkit_fingerprints(features_to_be_calculated['RDKit_fps'])
+                self.calculate_rdkit_fingerprints()
             elif not self.model_data.empty:
                 self.calculate_rdkit_fingerprints()
             else:
                 raise ValueError('No model data nor csv file provided')
             self.populate_feature_space_map('rdkitfps', self.rdkitfps.columns.values)
 
+        if RDKit_descriptors:
+            if from_csv:
+                self.rdkitdesc_tsv = self.build_output_filename('RDKit_descriptors')
+                self.rdkitdesc = pd.read_csv(self.rdkitdesc_tsv, sep='\t')
+                print(f"Loading features from {self.rdkitdesc_tsv}")
+            elif load_by_feature_name and not self.model_data.empty:
+                self.calculate_rdkit_descriptors()
+            elif not self.model_data.empty:
+                self.calculate_rdkit_descriptors()
+            else:
+                raise ValueError('No model data nor csv file provided')
+            self.populate_feature_space_map('rdkitdesc', self.rdkitdesc.columns.values)
+
+        if avalonfps:
+            if from_csv:
+                self.avalonfps_tsv = self.build_output_filename('avalonfps')
+                self.avalonfps = pd.read_csv(self.avalonfps_tsv, sep='\t')
+                print(f"Loading features from {self.avalonfps_tsv}")
+            elif load_by_feature_name and not self.model_data.empty:
+                self.calculate_avalon_fingerprints()
+            elif not self.model_data.empty:
+                self.calculate_avalon_fingerprints()
+            else:
+                raise ValueError('No model data nor csv file provided')
+            self.populate_feature_space_map('avalonfps', self.avalonfps.columns.values)
+
+
         if clogp:
             if from_csv:
                 self.clogp_tsv = self.build_output_filename('clogp')
                 self.clogp = pd.read_csv(self.clogp_tsv, sep='\t')
+                print(f"Loading features from {self.clogp_tsv}")
             elif not self.model_data.empty:
                 self.calculate_clogp()
             else:
@@ -272,6 +328,7 @@ class Descriptors(Pepper):
 
         if plant_fingerprints:
             try:
+                print(f"Loading features from {self.plant_fp_tsv}")
                 plant_fp_df = pd.read_csv(self.plant_fp_tsv, sep='\t')
                 plant_fp_df.drop(columns=['dataset'], inplace=True)
                 self.plant_fp = pd.merge(self.model_data['plant'],
@@ -314,6 +371,10 @@ class Descriptors(Pepper):
                 descriptors_list.append('plant_fp')
             if not self.rdkitfps.empty:
                 descriptors_list.append('rdkitfps')
+            if not self.rdkitdesc.empty:
+                descriptors_list.append('rdkitdesc')
+            if not self.avalonfps.empty:
+                descriptors_list.append('avalonfps')
 
         self.features = self.get_features_by_keyword(descriptors_list[0])
         if len(descriptors_list) > 1:
@@ -341,16 +402,21 @@ class Descriptors(Pepper):
         elif keyword == 'plant_fp':
             feature_matrix = self.plant_fp
         elif keyword == 'koc':
-            return self.koc
+            feature_matrix = self.koc
         elif keyword == 'mfps':
-            return self.mfps
+            feature_matrix = self.mfps
         elif keyword == 'clogp':
-            return self.clogp
+            feature_matrix = self.clogp
         elif keyword == 'rdkitfps':
-            return self.rdkitfps
+            feature_matrix = self.rdkitfps
+        elif keyword == 'rdkitdesc':
+            feature_matrix = self.rdkitdesc
+        elif keyword == 'avalonfps':
+            feature_matrix = self.avalonfps
         else:
             raise NotImplementedError('No features available for {}'.format(keyword))
-        assert not feature_matrix.empty, ('The feature space {} is currently not loaded'.format(keyword))
+        assert not feature_matrix.empty, (f'The feature space {keyword} is currently not loaded, '
+                                          f'or no {keyword} features could be calculated for the input compound(s).')
         return feature_matrix
 
     def check_if_loaded(self, feature: str):
@@ -441,31 +507,55 @@ class Descriptors(Pepper):
         Calculate PaDEL descriptors via padelpy (DOI: 10.1002/jcc.21707)
         """
         print('-> calculate PaDEL descriptors')
+        smiles_list = list(self.model_data[self.smiles_name])
+        batch_size = 30
+        batch_number = int(len(smiles_list) / batch_size)+1
+        print('Number of substances', len(smiles_list))
+        print('Batch size', batch_size, ' - Number of batches', batch_number)
+        padel_df = pd.DataFrame()
         D = {}
-        for index, row in self.model_data.iterrows():
-            smiles = row[self.smiles_name]
+        for i in range(batch_number):
+            print('Running batch number', i, 'out of ', batch_number)
+            batch = smiles_list[i * batch_size:(i + 1) * batch_size]
             try:
-                padel_descriptors = from_smiles(smiles)
-            except RuntimeError:
-                print('Warning: No PaDEL descriptor could be '
-                      'calculated for compound: {}'.format(smiles))
+                padel_D = from_smiles(batch)
+                for j, smi in enumerate(batch):
+                    D[smi] = padel_D[j]
+            except RuntimeError: # if batch fails, go one by one
+                if len(smiles_list) == 1: # if there was only one compound, we won't try again
+                    continue
+                print("Runtime error encountered - calculate one by one")
+                for smi in batch:
+                    try:
+                        padel_descriptors = from_smiles(smi)
+                    except RuntimeError:
+                        print('Warning: No PaDEL descriptor could be '
+                              'calculated for compound: {}'.format(smi))
+                    else:
+                        D[smi] = padel_descriptors
+            padel_descriptors_batch = pd.DataFrame.from_dict(D, orient='index')
+            padel_descriptors_batch[self.smiles_name] = padel_descriptors_batch.index
+            if i==0:
+                padel_df = padel_descriptors_batch
             else:
-                D[smiles] = padel_descriptors
-                
-        self.padel = pd.DataFrame.from_dict(D, orient='index')
+                padel_df = pd.concat([padel_df, padel_descriptors_batch])
+
+        self.padel = padel_df
         self.padel.columns = [f'PaDEL-{column_name}' for column_name in self.padel.columns]
-        self.padel[self.smiles_name] = self.padel.index
+        self.padel.rename(columns={'PaDEL-SMILES': 'SMILES'}, inplace=True)
+        # self.padel[self.smiles_name] = self.padel.index
         self.padel.to_csv(self.padel_tsv, sep='\t', index=False)
 
-    def calculate_enviPath_descriptors(self, triggered=False, probabilities=False, feature_name_list = None):
+    def calculate_enviPath_descriptors(self, triggered=False, probabilities=False, feature_name_list = None, new_api=False):
         """
         Obtain descriptors from enviPath via enviPath-python
         :param triggered: if True, ep_trig (triggered rules) is calculated
         :param probabilities: if True, ep_prob (rule probabilities) is calculated
         :param feature_name_list
+        :param new_api: set to True to use default envipath.org, set to False to use legacy.envipath.org
         """
         print('-> calculate enviPath rule descriptors')
-        eP = enviPath(self.instance_host)
+        eP = enviPath(self.instance_host, new_api=new_api)
 
         # logging in to envipath
         if self.ep_login_required:
@@ -544,7 +634,6 @@ class Descriptors(Pepper):
 
     def get_rule_probabilities(self, relative_reasoning, feature_list_prob):
         """
-        #todo: this is porably not working
         Expand each SMILES in the model_data using the relative_reasoning, and get the reaction probability
         :param relative_reasoning: relative reasoning model to be used to obtain probabilities
         """
@@ -563,15 +652,16 @@ class Descriptors(Pepper):
                 rules.add(rule)
             D[index] = res_dict
             smiles_list.append(smiles)
-        self.ep_prob = pd.DataFrame(columns=list(rules).sort())  # todo: check this sort
+        self.ep_prob = pd.DataFrame(columns=sorted(list(rules)))
+        self.ep_prob[self.id_name] = D.keys()
 
-        for ID in D.keys():
-            for rule_name in D[ID].keys():
-                probability = D[ID][rule_name]
-                row_index = self.ep_prob[self.ep_prob[self.id_name] == ID].index
+        for id, rule_dict in D.items():
+            for rule_name, probability in rule_dict.items():
+                row_index = self.ep_prob[self.ep_prob[self.id_name] == id].index
                 self.ep_prob.loc[row_index, rule_name] = probability
 
         self.ep_prob[self.smiles_name] = smiles_list
+        self.ep_prob.drop(columns=[self.id_name], inplace=True)
         self.ep_prob.fillna(0, inplace=True)
         self.ep_prob.to_csv(self.ep_prob_tsv, sep='\t', index=False)
 
@@ -605,7 +695,7 @@ class Descriptors(Pepper):
         for each compound.
         :return: a dataframe file with the morgan fingerprints of all compounds.
         """
-        print('->calculate morgan fingerprints')
+        print('-> calculate morgan fingerprints')
         dataframe = self.model_data
         if 'mfps' not in dataframe.columns:
             smiles_list = dataframe[self.smiles_name]
@@ -613,7 +703,9 @@ class Descriptors(Pepper):
             mf_bv = []  # morgan fingerprints as BitVectors
             for smiles in smiles_list:
                 mol = Chem.MolFromSmiles(smiles)
-                mf_bv.append(ac.GetMorganFingerprintAsBitVect(mol, 2, 2048))
+                mfpgen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
+                fp = mfpgen.GetFingerprint(mol)
+                mf_bv.append(fp)
             mfps = np.array([list(x) for x in mf_bv])
             print("calculated morgan fingerprints")
         else:
@@ -626,11 +718,11 @@ class Descriptors(Pepper):
 
     def calculate_rdkit_fingerprints(self):
         """
-        Calculates the Morgan fingerprints (as ECFPs, because radius = 2) from RDKit
+        Calculates the path fingerprints from RDKit
         for each compound.
         :return: a dataframe file with the morgan fingerprints of all compounds.
         """
-        print('->calculate rdkit fingerprints')
+        print('-> calculate RDKit fingerprints')
         rdkgen = rdFingerprintGenerator.GetRDKitFPGenerator(fpSize=2048)
 
         dataframe = self.model_data
@@ -643,7 +735,7 @@ class Descriptors(Pepper):
             mol = Chem.MolFromSmiles(smiles)
             # rdkit_CountVector_list.append(rdkgen.GetCountFingerprintAsNumPy(mol))
             rdkit_BitVector_list.append(rdkgen.GetFingerprintAsNumPy(mol))
-        print("calculated rdkit fingerprints")
+        print("calculated RDKit fingerprints")
 
         # self.rdkitfps = pd.DataFrame(rdkit_CountVector_list)
         self.rdkitfps = pd.DataFrame(rdkit_BitVector_list)
@@ -651,6 +743,67 @@ class Descriptors(Pepper):
         self.rdkitfps[self.smiles_name] = dataframe[self.smiles_name]
         self.rdkitfps.to_csv(self.rdkitfps_tsv, sep='\t', index=False)
         return
+    
+    def calculate_avalon_fingerprints(self):
+        """
+        Calculates the Avalon fingerprints from RDKit
+        for each compound.
+        :return: a dataframe file with the Avalon fingerprints of all compounds.
+        """
+        print("-> calculate Avalon fingerprints")
+        dataframe = self.model_data
+        smiles_list = dataframe[self.smiles_name]
+        
+        avalon_bitvectors = []  # Avalon fingerprints as BitVectors
+        for smiles in smiles_list:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                print('Could not process SMILES:', smiles)
+                avalon_bitvectors.append(np.zeros(2048))
+                continue
+
+            fp = pyAvalonTools.GetAvalonFP(mol ,nBits = 2048)
+            arr = np.zeros((2048,), dtype=int)
+            DataStructs.ConvertToNumpyArray(fp, arr)
+            avalon_bitvectors.append(arr)
+            
+        self.avalonfps = pd.DataFrame(avalon_bitvectors)
+        self.avalonfps.columns = [f'Avalon-{i}' for i in range(self.avalonfps.shape[1])]
+        self.avalonfps[self.smiles_name] = dataframe[self.smiles_name]
+        self.avalonfps.to_csv(self.avalonfps_tsv, sep='\t', index=False)
+        
+
+    def calculate_rdkit_descriptors(self):
+        """
+        Calculate a set of molecular descriptors available in RDKit
+        for each compound.
+        :return: a dataframe file with the RDKit descriptors of all compounds.
+        """
+        print('-> calculate RDKit descriptors')
+        dataframe = self.model_data
+        smiles_list = dataframe[self.smiles_name]
+
+        descriptor_names = [d[0] for d in rdkitDescriptors._descList]
+        desc_dict = {name: None for name in descriptor_names}
+        desc_dict[self.smiles_name] = None
+        
+        for smiles in smiles_list:
+            mol = Chem.MolFromSmiles(smiles)
+            rdkit_descriptors = rdkitDescriptors.CalcMolDescriptors(mol)
+            # add to dictionary
+            for key, value in rdkit_descriptors.items():
+                if desc_dict[key] is None:
+                    desc_dict[key] = [value]
+                else:
+                    desc_dict[key].append(value)
+                
+            if desc_dict[self.smiles_name] is None:
+                desc_dict[self.smiles_name] = [smiles]
+            else:
+                desc_dict[self.smiles_name].append(smiles)
+
+        self.rdkitdesc = pd.DataFrame(desc_dict)
+        self.rdkitdesc.to_csv(self.rdkitdesc_tsv, sep='\t', index=False)
 
     def calculate_clogp(self):
         """

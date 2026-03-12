@@ -2,18 +2,18 @@ import pathlib
 import os
 import re
 
-
 class Pepper:
-    def __init__(self, renku=False):
+    def __init__(self, renku=False, pepper_data_location = ''):
+        self.pepper_data_location = pepper_data_location
         if renku:
-            self.root_directory = '/tmp/'
+            self.root_directory = str(pathlib.Path(__file__).parent.resolve()) + '/../'
             self.data_directory = os.path.join(self.root_directory, 'output')
         else:
             self.root_directory = str(pathlib.Path(os.path.expanduser("~")))
-            self.data_directory = os.path.join(self.root_directory, 'pepper_data')
+            self.data_directory = os.path.join(self.root_directory, self.pepper_data_location, 'pepper_data')
         self.build_directory_structure()
         self.tag = 'my_data_tag' # user-defined tag, e.g., test_data, all_data, curated_data
-        self.data_type = 'unspecified_data_type' # soil, sediment, sludge, WWTP etc.
+        self.data_type = 'other' # soil, sediment, sludge, WWTP etc.
         self.setup_name = 'default_setup' # string to distinguish between different settings used, versatile
         self.curation_type = 'default_curation'
 
@@ -45,6 +45,16 @@ class Pepper:
 
     def get_data_directory(self):
         return self.data_directory
+
+    def get_pepper_data_location(self):
+        return self.pepper_data_location
+
+    def set_pepper_data_location(self, data_location: str):
+        """
+        todo: check if location exists and is empty
+        @param data_location: where to save PEPPER data starting from user directory.
+        """
+        self.pepper_data_location = data_location
 
     def get_root_directory(self):
         return self.root_directory

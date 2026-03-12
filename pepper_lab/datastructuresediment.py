@@ -2,14 +2,14 @@ from pepper_lab.pepper import Pepper
 from pepper_lab.util import *
 from pepper_lab.datastructure import DataStructure
 from pepper_lab.bayesian import *
+from pepper_lab.visualize import Visualize
 
 
 class DataStructureSediment(DataStructure):
     def __init__(self, pep: Pepper):
         super().__init__(pep)
-        self.set_data_directory(os.data.join(pep.data_directory,'data_structure','sediment'))
-        self.envipath_package = 'https://envipath.org/package/5c5639b0-19f8-4671-9d9xa-36f05e5518df'  # bigger
-        # self.envipath_package = 'https://envipath.org/package/833d620c-db01-4650-9ef8-2c5de2edf3dd'  # smaller
+        self.set_data_directory(os.path.join(pep.data_directory,'data_structure','sediment'))
+        self.envipath_package = 'https://envipath.org/package/348bf483-5ccb-471f-859c-bd2252b562cd'  # final ws-package
         self.data_type = 'sediment'
         self.data_dict = {}
         self.raw_data_tsv = self.build_output_filename('raw_data')
@@ -18,6 +18,15 @@ class DataStructureSediment(DataStructure):
         self.model_data_tsv = self.build_output_filename('model_data')
         self.cpd_data_description_file = self.build_output_filename('cpd_data_description')
         self.spike_compound_dictionary = {}
+  
+    def clean_data(self):
+        """
+        Cleans the raw data by removing entries with missing or zero values for the target variable.
+        """
+        raw_data = pd.read_csv(self.raw_data_tsv, sep='\t')
+        raw_data.dropna(subset=['DT50_total_system'], inplace=True)
+        raw_data = raw_data[raw_data['DT50_total_system'] != 0]
+        raw_data.to_csv(self.raw_data_tsv, sep='\t', index=False)
 
     def curate_annotate(self, from_csv: bool = False, from_paper: bool = False):
         """
@@ -75,12 +84,12 @@ class DataStructureSediment(DataStructure):
         self.full_data['TOC_log'] = Util.log_transform(self.full_data['TOC'])
         self.full_data['DOC_log'] = Util.log_transform(self.full_data['DOC'])
 
-        self.full_data['DT50_count'] = self.count_halflives_ws()
+        self.full_data['DT50_count'] = self.count_halflives()
 
-        self.full_data['DT50_total_system_log_mean'] = self.get_hl_mean_ws()  # half-lives (hl) log mean
-        self.full_data['DT50_total_system_log_median'] = self.get_hl_median_ws()  # log median
+        self.full_data['DT50_total_system_log_gmean'] = self.get_geometric_mean('DT50_log_total_system')  # half-lives (hl) log mean
+        self.full_data['DT50_total_system_log_median'] = self.get_median('DT50_log_total_system')  # log median
         self.full_data['DT50_log_std_total_system'] = self.get_std('DT50_log_total_system')  # standard deviation hl
-        self.full_data['DT50_log_spread'] = self.get_hl_spread_ws()
+        self.full_data['DT50_log_spread'] = self.get_endpoint_spread('DT50_log_total_system')
 
         b_mean, b_std, b_mean_std = self.get_bayesian_stats()  # bayesian stats
         self.full_data['DT50_log_bayesian_mean'] = b_mean
@@ -141,13 +150,13 @@ class DataStructureSediment(DataStructure):
         print('Data frame size: ', len(self.full_data))
         self.cpd_data = self.full_data.loc[:,
                         [self.id_name, self.smiles_name, 'compound_name', 'compound_id', 'DT50_count',
-                         'DT50_total_system_log_mean', 'DT50_total_system_log_median',
+                         'DT50_total_system_log_gmean', 'DT50_total_system_log_median',
                          'DT50_log_spread', 'DT50_log_std_total_system', 'DT50_log_bayesian_mean',
                          'DT50_log_bayesian_std', 'DT50_log_bayesian_mean_std',
                          'canonical_SMILES', 'cropped_canonical_SMILES', 'cropped_canonical_SMILES_no_stereo']]
         self.cpd_data = self.cpd_data.drop_duplicates(self.id_name)
         self.cpd_data[self.target_variable_name] = self.cpd_data['DT50_log_bayesian_mean']
-        self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_std']
+        self.cpd_data[self.target_variable_std_name] = self.cpd_data['DT50_log_bayesian_mean_std']
 
         # save compound data and data summary
         print('Data frame size: ', len(self.cpd_data))
@@ -226,38 +235,6 @@ class DataStructureSediment(DataStructure):
 
         return study_name
 
-    def get_hl_mean_ws(self):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            mean = np.mean(this['DT50_log_total_system'])
-            new.append(mean)
-        return new
-
-    def get_hl_median_ws(self):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            median = np.median(this['DT50_log_total_system'])
-            new.append(median)
-        return new
-
-    def get_std(self, column):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            std = np.nanstd(this[column])
-            new.append(std)
-        return new
-
-    def get_hl_spread_ws(self):
-        new = []
-        for index, row in self.full_data.iterrows():
-            this = self.full_data.loc[self.full_data[self.id_name] == row[self.id_name]]
-            spread = max(this['DT50_log_total_system']) - min(this['DT50_log_total_system'])
-            new.append(spread)
-        return new
-
     def index_compounds(self):
         new = []
         this_id = 0
@@ -267,12 +244,6 @@ class DataStructureSediment(DataStructure):
                 this_id += 1
                 d[row[self.smiles_name]] = this_id
             new.append(this_id)
-        return new
-
-    def count_halflives_ws(self):
-        new = []
-        for i in self.full_data[self.id_name]:
-            new.append(self.full_data[self.id_name].value_counts()[i])
         return new
 
     def get_bayesian_stats(self):
@@ -359,11 +330,6 @@ class DataStructureSediment(DataStructure):
             new = "SFO"
         return new
 
-    # todo: Visualization
-    # def visualize(self):
-    #     vis = VisualizeSediment(self.pepper, self)
-    #     vis.print_violin_plot()
-
     @staticmethod
     def check_for_kinetics(addinfo):
         try:
@@ -372,3 +338,18 @@ class DataStructureSediment(DataStructure):
             return False
         else:
             return True
+
+    # Visualization
+    def analyze_distributions(self):
+        """
+        This function visualizes the distribution of the mean and the standard deviation of the target variable.
+        Optionally, distributions obtained from Bayesian inference can be considered. the cutoff value is how many experimental
+        DT50 values one compound need to be considered for the analysis.
+        """
+        print("\n############# Analyze target variable distribution ############# ")
+        v = Visualize(self,'analyze_distributions')
+        # distribution of target variable
+        v.plot_target_variable_distribution(mean_name='DT50_total_system_log_mean', std_name='DT50_log_std_total_system', cutoff_value = 4,
+                                            include_BI = True,
+                                          BI_mean_name = 'DT50_log_bayesian_mean',
+                                          BI_std_name = 'DT50_log_bayesian_std')

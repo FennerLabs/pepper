@@ -89,6 +89,7 @@ class Util:
 
     @staticmethod
     def log_transform(input_list):
+        
         log_list = np.log10(input_list)
         log_list[np.isneginf(log_list)] = 0  # replace -inf with 0
         return log_list
@@ -137,36 +138,30 @@ class Util:
     @staticmethod
     def convert_name(input_str):
         assert type(input_str) == str, f"Input must be a string, {type(input_str)} received: {input_str}"
-        if input_str == 'padel':
-            return 'PaDEL'
-        elif input_str == 'maccs':
-            return 'MACCS'
-        elif input_str == 'ep_trig':
-            return 'eP_rule'
-        elif input_str == 'SGDRegressor':
-            return 'SGD'
-        elif input_str in ['KNeighborsRegressor', 'KNN Regressor']:
-            return 'KNN'
-        elif input_str == 'MLPRegressor':
-            return 'MLP'
-        elif input_str == 'Support Vector Regressor':
-            return 'SVR'
-        elif input_str in ['GradientBoostingRegressor', 'Gradient Boosting Regressor']:
-            return 'GB'
-        elif input_str in ['RandomForestRegressor', 'Random Forest Regressor']:
-            return 'RF'
-        elif input_str == 'AdaBoostRegressor':
-            return 'AB'
-        elif input_str == 'Gaussian Process Regressor':
-            return 'GPR'
-        elif input_str == 'pca':
-            return 'PCA'
-        elif input_str == 'svd':
-            return 'SVD'
-        elif input_str == 'padel+maccs+ep_trig':
-            return 'all'
-        else:
+
+        mapping = {
+            'padel': 'PaDEL',
+            'maccs': 'MACCS',
+            'ep_trig': 'eP_rule',
+            'SGDRegressor': 'SGD',
+            'KNeighborsRegressor': 'KNN',
+            'KNN Regressor': 'KNN',
+            'MLPRegressor': 'MLP',
+            'Support Vector Regressor': 'SVR',
+            'GradientBoostingRegressor': 'GB',
+            'Gradient Boosting Regressor': 'GB',
+            'RandomForestRegressor': 'RF',
+            'Random Forest Regressor': 'RF',
+            'AdaBoostRegressor': 'AB',
+            'Gaussian Process Regressor': 'GPR',
+            'pca': 'PCA',
+            'svd': 'SVD',
+        }
+        mapped = mapping.get(input_str)
+        if not mapped:
+            print('Warning: no short name is defined for', input_str)
             return input_str
+        return mapped
 
     @staticmethod
     def get_display_name(input):
@@ -210,3 +205,47 @@ class Util:
         # get result list of lists based on split points
         result = np.split(input_list_copy, split_points)
         return result
+    
+    @staticmethod
+    def adjust_raw_predictions(y):
+        
+        return 1.48222333 * y + 0.42978124623300695
+    
+    @staticmethod
+    def tree_std_to_confidence(tree_std_array):
+        # Handle single float input
+        if isinstance(tree_std_array, (float, np.float64)):
+            tree_std_array = [tree_std_array]
+
+        confidence_list = []
+        for tree_std in tree_std_array:
+            # This values are based on observed deviations during training
+            max_tree_std = 0.594320  # 90% threshold during training
+            min_tree_std = max_tree_std/10
+            if tree_std < min_tree_std:
+                confidence = 1
+            elif tree_std > max_tree_std:
+                confidence = 0
+            else:
+                confidence = (-1 / (max_tree_std - min_tree_std)) * tree_std + (max_tree_std/(max_tree_std-min_tree_std))
+            confidence_list.append(confidence)
+        return confidence_list
+    
+
+    @staticmethod
+    def get_kernel_from_string(kernel_str):
+        from sklearn.gaussian_process.kernels import RBF, Matern, RationalQuadratic, ConstantKernel as C
+        if 'RBF' in kernel_str:
+            return C(2.0, (1e-3, 1e3)) * RBF(length_scale=1.0, length_scale_bounds=(1e-3, 1e3))
+        elif 'Matern' in kernel_str:
+            nu_search = re.search(r'nu=(\d\.\d)', kernel_str)
+            if nu_search:
+                nu_value = float(nu_search.group(1))
+            else:
+                nu_value = 1.5  # default
+            return C(2.0, (1e-3, 1e3)) * Matern(length_scale=2.5, length_scale_bounds=(1e-3, 1e3), nu=nu_value)
+        elif 'RationalQuadratic' in kernel_str:
+            return C(2.0, (1e-3, 1e3)) * RationalQuadratic(length_scale=1.0, alpha=1.0)
+        else:
+            # print(f"Warning: Kernel string '{kernel_str}' not recognized. Returning kernel as string.")
+            return kernel_str

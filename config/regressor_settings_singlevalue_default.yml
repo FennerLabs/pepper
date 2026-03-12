@@ -33,8 +33,6 @@ MLP:
         hidden_layer_sizes: (20,)
         activation: relu
         solver: adam
-    feature_selection_method: None
-    feature_selection_parameters: {}
 
 SVR:
     name: Support Vector Regressor

@@ -6,6 +6,3 @@ GPR:
         n_restarts_optimizer: 0
         kernel: "ConstantKernel(1.0, (1e-3, 1e3)) * Matern(length_scale=2.5, length_scale_bounds=(1e-3, 1e3), nu=0.5)"
     feature_reduction_method: None
-    feature_reduction_parameters:
-        pca:
-            n_components: 34

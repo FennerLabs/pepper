@@ -1,23 +1,26 @@
 import os
+from datetime import datetime
 
 import pandas as pd
 import numpy as np
 import random
 import sys
 from copy import deepcopy
+import joblib
 
-from mlxtend.preprocessing import standardize
+
 from mordred import Descriptor
 from pandas.core.common import random_state
-from sklearn.model_selection import train_test_split, cross_validate
-from sklearn.metrics import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
+from sklearn.model_selection import train_test_split, cross_validate, cross_val_score, KFold
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.base import clone
 # from sklearn.feature_selection import SequentialFeatureSelector # this library does not keep CV scores
 from mlxtend.feature_selection import SequentialFeatureSelector
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.decomposition import PCA
 from sklearn.decomposition import TruncatedSVD
-
-from genetic_selection import GeneticSelectionCV
+from itertools import product
+from rdkit import Chem, DataStructs
 
 from sklearn.preprocessing import MinMaxScaler, FunctionTransformer
 from sklearn.pipeline import Pipeline
@@ -27,12 +30,20 @@ from sklearn.feature_selection import VarianceThreshold
 # from sklearn.feature_selection import mutual_info_regression
 
 from scipy.cluster import hierarchy
+from scipy.stats import norm
+from scipy.spatial import distance_matrix
 from scipy.spatial.distance import squareform
+from scipy.special import rel_entr
 from collections import defaultdict
 
 from pepper_lab.pepper import Pepper
 from pepper_lab.visualize import Visualize
+from pepper_lab.util import Util
 
+
+#TODO: remove
+custom_dir = '/Users/moritzsalz/Desktop/msc_thesis_moritz_salz/multitask_gpr/gpytorch_model.py'
+sys.path.append(custom_dir)
 
 class Model(Pepper):
     def __init__(self, pep: Pepper, descriptors, model_data, pipe=None, regressor=None):
@@ -60,7 +71,7 @@ class Model(Pepper):
         self.best_regressor_params = {}
         self.best_regressor_model = None
         self.test_size = 0.2
-        # feature selection method and parameters (e.g., sequential feature selection, genetic algorithm)
+        # feature selection method and parameters (e.g., sequential feature selection, importance)
         self.feature_selection_method = None
         self.feature_selection_params = {}
         # feature dimensionality reduction methods and parameters (e.g., PCA: Principal Component Analysis)
@@ -77,8 +88,6 @@ class Model(Pepper):
         self.features = pd.DataFrame()  # This could be modeling.features or modeling.reduced_features
 
         # data variables
-        self.X = pd.DataFrame()  # 'defined after applying get_X_y' #todo: remove, not used?
-        self.y = pd.DataFrame()  # 'defined after applying get_X_y' #todo: remove, not used?
         self.X_train = pd.DataFrame()  # 'X_train not defined yet; apply data_split'
         self.X_test = pd.DataFrame()  # 'X_test not defined yet; apply data_split'
         self.y_train = ()  # 'y_train not defined yet; apply data_split'
@@ -104,6 +113,7 @@ class Model(Pepper):
         self.y_pred_train = pd.DataFrame() # 'model not trained yet or predict method not applied to X_train'
         self.y_pred = pd.DataFrame() # 'predict method not applied yet to X_test'
         self.y_pred_score = [] # predicted score for each value of y, e.g., stdev in case of GPR
+        self.y_pred_score_train = [] # standard deviation of y_pred, e.g., stdev in case of GPR
         self.has_y_pred_score = False # True if a prediction score is expected from the regressor
         # fitting values
         self.fitting_data_values = pd.DataFrame()
@@ -112,12 +122,15 @@ class Model(Pepper):
         # predicted values
         self.predicted_target_variable = pd.DataFrame()
         self.predicted_target_variable_tsv = self.build_output_filename('predictions')
-        self.training_dict = {}
+        self.predicted_target_variable_train = pd.DataFrame()
+        self.predicted_target_variable_test = pd.DataFrame()
+        self.predicted_target_variable_holdout = pd.DataFrame()
 
         # If there is a predicted stdev or confidence value
         self.use_individual_trees = False
 
         # scores
+        self.training_dict = {}
         self.train_scores = pd.DataFrame()
         self.test_scores = pd.DataFrame()
 
@@ -135,7 +148,9 @@ class Model(Pepper):
         self.settings_string = '' # regressor name and feature selection method used to build model
         self.feature_names_used_for_training = [] # list of features needed to apply model to external data
 
-
+        # Prediction mode
+        self.prediction_mode = True
+   
     def __deepcopy__(self, memo):
         cls = self.__class__
         result = cls.__new__(cls)
@@ -169,6 +184,7 @@ class Model(Pepper):
         if self.regressor is None: # set default
             self.regressor = RandomForestRegressor(random_state=self.random_state)
             self.regressor_name = 'RandomForestRegressor'
+            self.regressor_name_short = 'RF'
 
         self.features = self.descriptors.features
         # remove feature columns that have NA for one or more compounds
@@ -220,8 +236,11 @@ class Model(Pepper):
             self.regressor_name = regressor_dict['name']
         else:
             self.regressor_name = str(regressor_dict['name']).split('(')[0]
+
         if regressor_dict.get('regressor_params'):
             self.regressor_params = regressor_dict['regressor_params']
+        else:
+            self.regressor_name_short = str(regressor_dict['name']).split('(')[0]
         # define feature space
         if regressor_dict.get('descriptors'):
             self.descriptors.define_feature_space(regressor_dict['descriptors'])
@@ -238,6 +257,11 @@ class Model(Pepper):
         # define if output score is expected for this regressor
         if self.regressor_name in ['Gaussian Process Regressor', 'KNN Regressor']:
             self.has_y_pred_score =True
+
+        # set short name
+        self.regressor_name_short = Util.convert_name(self.regressor_name)
+        # add regressor to settins string
+        self.settings_string = self.regressor_name_short
 
     def load_settings_from_dict(self, regressor_dict):
         self.define_regressor_by_dict(regressor_dict)
@@ -341,13 +365,11 @@ class Model(Pepper):
             self.select_features_by_importance(**kwargs)
         elif self.feature_selection_method == 'sequential':
             self.select_features_by_sequential_selector(**kwargs)
-        elif self.feature_selection_method == 'genetic':
-            self.select_features_by_genetic_algorithm(**kwargs)
         elif self.feature_selection_method in [None, 'None']:
             self.no_feature_selection()
         else:
             raise ValueError(
-                "Possible values for feature_selection parameter: 'importance', 'genetic', 'sequential', None")
+                "Possible values for feature_selection parameter: 'importance', 'sequential', None")
 
         print(f"\tselected features: {len(self.selected_features_names)}")
         print(self.selected_features_names)
@@ -406,7 +428,10 @@ class Model(Pepper):
             df_run['Score'] = cv_run.feature_importances_
             df_run['CV_run'] = [index+1] * len(cv_run.feature_importances_)
             df_run['Average_score'] = feature_importances
-            self.selected_features_scores = pd.concat([self.selected_features_scores, df_run], ignore_index=True)
+            if self.selected_features_scores.empty:
+                self.selected_features_scores = df_run
+            else:
+                self.selected_features_scores = pd.concat([self.selected_features_scores, df_run], ignore_index=True)
 
         # drop features that were not selected and sort by average importance score
         self.selected_features_scores = self.selected_features_scores[self.selected_features_scores['Feature'].isin(self.selected_features_names)]
@@ -418,35 +443,6 @@ class Model(Pepper):
         # save selected features in model
         self.X_train_selected = self.X_train[self.X_train.columns.intersection(self.selected_features_names)]
         self.X_test_selected = self.X_test[self.X_test.columns.intersection(self.selected_features_names)]
-
-    def select_features_by_genetic_algorithm(self):
-        """
-        Select feature by genetic algorithm using genetic_selection.GeneticSelectionCV
-        todo: visualize scores by generation (if available in gsv._support), accept parameters
-        todo: @jose not sure if these default parameters are ok, what do you think?
-        """
-        print(f'-> select features with genetic algorithm')
-        # Create GeneticSelectionCV to optimize feature selection using genetic algorithm
-        gscv = GeneticSelectionCV(self.regressor, cv=5, scoring='r2', n_population=100,
-                                  n_gen_no_change=5, n_jobs=-1, max_features=30, caching=True, verbose=True)
-        gscv.fit(self.X_train, self.y_train.values)
-
-        # # Get the selected features
-        selected_features_bool = gscv.get_support()
-        self.selected_features_names = self.features_names[selected_features_bool]
-        self.X_train_selected = self.X_train.iloc[:, selected_features_bool]
-        self.X_test_selected = self.X_test[self.X_test.columns.intersection(self.selected_features_names)]
-
-        self.settings_string += "_GeneticSelection"
-
-        # save cv importance scores for visualization
-        for cv_run in [1,2,3,4,5]: # 5 inner CV runs
-            df_run = pd.DataFrame()
-            df_run['Feature'] = self.selected_features_names
-            df_run['Score'] = [np.nan] * len(self.selected_features_names)
-            df_run['CV_run'] = [cv_run] * len(self.selected_features_names)
-            df_run['Average_score'] = [np.nan] * len(self.selected_features_names)
-            self.selected_features_scores = pd.concat([self.selected_features_scores, df_run], ignore_index=True)
 
     def select_features_by_sequential_selector(self, method ='top_k', top_k = 50, min_improvement = 0.001, verbose = False):
         """
@@ -569,7 +565,7 @@ class Model(Pepper):
         """
         print(f'-> Reduce feature space with {method_name} to {n_components} components')
         n_features = len(self.X_train.columns)
-        if n_components > n_features:
+        if type(n_components) == int and n_components > n_features:
             n_components = n_features
             print('Warning: n_components = {} to be generated, but only {} features available:'.format(n_components,
                                                                                                         n_features))
@@ -593,7 +589,7 @@ class Model(Pepper):
                         "reduce_dim__n_components": n_components
                     }
                 ]
-                grid = GridSearchCV(pipe, cv=5, n_jobs=1, param_grid=param_grid, return_train_score=True)
+                grid = GridSearchCV(pipe, cv=5, n_jobs=-1, param_grid=param_grid, return_train_score=True)
                 # get best components
                 grid.fit(self.X_train_selected, self.y_train.values)
                 n_components = grid.best_params_['reduce_dim__n_components']
@@ -606,11 +602,14 @@ class Model(Pepper):
         method.set_params(n_components=n_components)
 
         # perform PCA on all X_train_selected
-        method.fit(self.X_train_selected, self.y_train.values)
+        method.fit(self.X_train_selected)
         self.X_train_reduced = method.transform(self.X_train_selected)
+
+        # transform X_test_selected if not empty
         if not self.X_test_selected.empty:
             self.X_test_reduced = method.transform(self.X_test_selected)
         self.feature_transformer = method
+
 
         print(method.explained_variance_ratio_)
         self.reduced_features_names = []
@@ -643,6 +642,8 @@ class Model(Pepper):
         # transform y
         self.y_train = self.y_train[self.target_variable_name]
         self.y_test = self.y_test[self.target_variable_name]
+        self.smiles_train = self.data.iloc[self.y_train.index][self.smiles_name]
+        self.smiles_test = self.data.iloc[self.y_test.index][self.smiles_name]
         self.test_indices = self.y_test.index.values.tolist()
 
     def define_outer_loop(self, train_index, test_index):
@@ -658,6 +659,8 @@ class Model(Pepper):
         """
         self.train_indices = train_index
         self.test_indices = test_index
+        self.smiles_train = self.data.iloc[train_index][self.smiles_name]
+        self.smiles_test = self.data.iloc[test_index][self.smiles_name]
         self.X_train = self.features.iloc[train_index]
         self.X_test = self.features.iloc[test_index]
         self.y_train = self.target_variable.iloc[train_index][self.target_variable_name]
@@ -759,12 +762,12 @@ class Model(Pepper):
         self.settings_string += self.regressor_name
         self.regressor.fit(self.X_train, self.y_train)
 
-        self.y_pred_train = self.regressor.predict(self.X_train)
+        self.y_pred_train = self.regressor.predict(self.X_train.values)
         self.y_pred_train = pd.DataFrame(self.y_pred_train)
         self.y_pred_train.index = self.X_train.index
         if verbose:
             print("\n############# Testing ############# ")
-        self.predict(self.X_test)
+        self.predict(self.X_test.values) # some regressors give a UserWarning wtih X_test, some with X_test.values
         self.y_pred = pd.DataFrame(self.y_pred)
         self.y_pred.index = self.X_test.index
 
@@ -832,7 +835,7 @@ class Model(Pepper):
         self.save_scores(run_id, 'train', verbose=verbose)
         self.save_scores(run_id, 'test', verbose=verbose)
 
-    def train_regressor_on_subset(self, subset_index: []):
+    def train_regressor_on_subset(self, subset_index:[]):
         """
         Train the regressor on a subset of the data, defined by subset_index
         @param subset_index: indices of data subset for model training
@@ -908,32 +911,88 @@ class Model(Pepper):
         # self.fitting_data_values.to_csv(self.fitting_data_tsv, sep='\t', index=True)
         self.training_dict[random_state] = self.fitting_data_values
 
-    def save_predicted_values(self, random_state):
+    def save_predicted_values(self, random_state, stage = 'test', get_nearest_neighbors=False, k=5, neighbor_metric = 'tanimoto'):
         """ Must be called after train and test to get predicted values"""
-        self.predicted_target_variable = pd.DataFrame()
-        self.predicted_target_variable['SMILES'] = self.data[self.smiles_name][self.test_indices]
-        self.predicted_target_variable['predicted'] = self.y_pred
-        self.predicted_target_variable['experimental'] = self.y_test
-        self.predicted_target_variable['random_state'] = random_state
-        self.predicted_target_variable['absolute_error'] = (
-            abs(self.predicted_target_variable['predicted'] - self.predicted_target_variable['experimental']))
+
+        if stage == 'train':
+            y_pred = self.y_pred_train
+            indices = self.train_indices
+            y_pred_score = self.y_pred_score_train
+            y_std = self.y_train_std
+            y = self.y_train
+        elif stage == 'test':
+            y_pred = self.y_pred
+            indices = self.test_indices
+            y_pred_score = self.y_pred_score
+            y_std = self.y_test_std
+            y = self.y_test
+        elif stage == 'hold_out':
+            y_pred = self.y_pred
+            indices = self.test_indices
+            y_pred_score = self.y_pred_score
+            y_std = self.y_test_std
+            y = self.y_test
+        else:
+            raise ValueError("Stage should be 'train', 'test' or 'hold_out'")
+
+        predicted_df = pd.DataFrame()
+        predicted_df['SMILES'] = self.data[self.smiles_name][indices]
+        predicted_df['predicted'] = y_pred
+        predicted_df['experimental'] = y
+        predicted_df['random_state'] = random_state
+        predicted_df['absolute_error'] = (abs(predicted_df['predicted'] - predicted_df['experimental']))
+        predicted_df['setup_name'] = (self.setup_name)
+        predicted_df['reduction_method'] = (str(self.feature_reduction_method))
 
         if self.has_y_pred_score:
-            self.predicted_target_variable['predicted_score'] = self.y_pred_score
-        if self.has_target_variable_std():
-            self.predicted_target_variable['experimental_std'] = self.y_test_std
+            predicted_df['predicted_score'] = y_pred_score
 
-        self.settings_string += f"_CV{random_state}"
-        output_filename = os.path.join(self.get_data_directory(),
-                                 'predictions_{}_{}_{}_{}.csv'.format(self.data_type, self.tag,
-                                                                              self.setup_name, self.settings_string))
-        print("-> save predictions to", output_filename)
-        self.predicted_target_variable.to_csv(output_filename)
+        if self.has_target_variable_std():
+            predicted_df['experimental_std'] = y_std
+        
+        if get_nearest_neighbors == True and stage in ('test', 'hold_out'):
+
+            if neighbor_metric == 'tanimoto':
+                self.train_fps, _ = self.make_morgan_fps(self.smiles_train)
+                self.test_fps, _ = self.make_morgan_fps(self.smiles_test)
+                distances, indices_nn = self.knn_tanimoto_morgan(self.test_fps, self.train_fps, k=k)
+
+            elif neighbor_metric == 'euclidean':
+                distances, indices_nn = self.calculate_min_distance(self.X_test_reduced, self.X_train_reduced, k=k)
+
+            else:
+                raise ValueError("neighbor_metric should be 'tanimoto' or 'euclidean'")
+ 
+
+            idx_safe = np.maximum(indices_nn, 0)
+            min_dist_smiles = self.smiles_train.to_numpy()[idx_safe]
+            min_dist_dt50 = self.y_train.to_numpy()[idx_safe]
+
+            for j in range(k):
+
+                # fill None/Nan values if any index is -1
+                mask_valid = indices_nn[:, j] >= 0
+                col_smiles = np.where(mask_valid, min_dist_smiles[:, j], None)
+                col_dt50 = np.where(mask_valid, min_dist_dt50[:, j], np.nan)
+                col_distances = np.where(mask_valid, distances[:, j], np.nan)
+
+                predicted_df[f'nearest_smiles_{j+1}'] = col_smiles
+                predicted_df[f'nearest_dt50_{j+1}'] = col_dt50
+                predicted_df[f'nearest_distance_{j+1}'] = col_distances
+
+        # assign to correct attribute
+        if stage == 'train':
+            self.predicted_target_variable_train = predicted_df
+        elif stage == 'test':
+            self.predicted_target_variable_test = predicted_df
+        else: # holdout
+            self.predicted_target_variable_holdout = predicted_df
 
     def save_external_predictions(self, descriptors):
         """ Same as save_predicted_values, but for external predictions. """
         self.predicted_target_variable = pd.DataFrame()
         self.predicted_target_variable[self.smiles_name] = descriptors.features[self.smiles_name]
+        self.smiles_predicted = descriptors.features[self.smiles_name]
         self.predicted_target_variable[self.target_variable_name + '_predicted'] = self.y_pred
         if self.has_y_pred_score:
             self.predicted_target_variable[self.target_variable_std_name + '_predicted'] = self.y_pred_score
@@ -962,38 +1021,50 @@ class Model(Pepper):
         if stage == 'train':
             y_true = self.y_train
             y_pred = self.y_pred_train
+            y_pred_score = self.y_pred_score_train
 
         elif stage == 'test':
             y_true = self.y_test
             y_pred = self.y_pred
+            y_pred_score = self.y_pred_score
 
-        else:
-            y_true = None
-            y_pred = None
+        elif stage == 'hold_out':
+            y_true = self.y_test
+            y_pred = self.y_pred
+            y_pred_score = self.y_pred_score
 
         scores_dic = {
-            'r2': [r2_score(y_true, y_pred)],
-            'mse': [mean_squared_error(y_true, y_pred)],
-            'rmse': [root_mean_squared_error(y_true, y_pred)],
-            'mae': [mean_absolute_error(y_true, y_pred)],
+            'R2': [r2_score(y_true, y_pred)],
+            'MSE': [mean_squared_error(y_true, y_pred)],
+            'RMSE': [np.sqrt(mean_squared_error(y_true, y_pred)) ],
+            'MAE': [mean_absolute_error(y_true, y_pred)],
+            'mean function std (uncertainty)': [np.mean(y_pred_score) if len(y_pred_score) > 0 else np.nan],
             'descriptors': [self.descriptors.get_current_feature_space()],
             'regressor': [self.regressor_name],
             'feature_selection': [str(self.feature_selection_method)],
             'feature_reduction': [str(self.feature_reduction_method)],
             'run_id': [run_id],
+            'setup_name': [self.setup_name],
             'train_fraction': [train_fraction],
+            'regressor params': [str(self.best_regressor_params)],
+            'reduction params': [str(self.best_reduction_params) if self.feature_reduction_method not in [None, 'None'] else 'None']
         }
 
+
+
         if stage == 'train':
-            self.train_scores = pd.DataFrame(scores_dic)
+            self.train_scores_df = pd.DataFrame(scores_dic)
             if verbose:
-                print("Train scores: \n{}".format(self.train_scores.to_markdown()))
-            self.train_scores_df = pd.concat([self.train_scores_df, self.train_scores], ignore_index=True)
+                print("Train scores: \n{}".format(self.train_scores_df.to_markdown()))
         elif stage == 'test':
-            self.test_scores = pd.DataFrame(scores_dic)
+            self.test_scores_df = pd.DataFrame(scores_dic)
             if verbose:
-                print("Test scores: \n{}\n{}".format(self.test_scores.to_markdown(), '-'*50))
-            self.test_scores_df = pd.concat([self.test_scores_df, self.test_scores], ignore_index=True)
+                print("Test scores: \n{}\n{}".format(self.test_scores_df.to_markdown(), '-'*50))
+        
+        elif stage == 'hold_out':
+            self.holdout_scores_df = pd.DataFrame(scores_dic)
+            if verbose:
+                print("Hold-out scores: \n{}\n{}".format(self.holdout_scores_df.to_markdown(), '-'*50))
         else:
             print("Stage not clearly defined")
             return None
@@ -1006,11 +1077,9 @@ class Model(Pepper):
             self.features.shape[1],
             self.target_variable_std_name))
         print("Average train scores:")
-        print(self.train_scores_df.loc[:, ['r2', 'mse', 'rmse', 'mae']].mean())
+        print(self.train_scores_df.loc[:, ['R2', 'MSE', 'RMSE', 'MAE']].mean())
         print("Average test scores:")
-        print(self.test_scores_df.loc[:, ['r2', 'mse', 'rmse', 'mae']].mean())
-
-
+        print(self.test_scores_df.loc[:, ['R2', 'MSE', 'RMSE', 'MAE']].mean())
 
     def perform_grid_search(self, X, save_results = False):
         print("-> optimize hyperparameters:", self.regressor_params)
@@ -1027,7 +1096,7 @@ class Model(Pepper):
             pipeline_params['regressor__' + p] = self.regressor_params[p]
 
         # Create GridSearchCV to optimize hyperparameters
-        grid_search = GridSearchCV(pipe, pipeline_params, cv=5, scoring='r2')
+        grid_search = GridSearchCV(pipe, pipeline_params, cv=5, scoring='r2', n_jobs=1)
         grid_search.fit(X, self.y_train.values)
         print("\tCV test scores hyperparameter tuning (R2):", grid_search.cv_results_['mean_test_score'])
 
@@ -1047,44 +1116,107 @@ class Model(Pepper):
         @param descriptors: Descriptor object for input SMILES
         """
         # retrieve only features that are used by the model
-        X = descriptors.features[descriptors.features.columns.intersection(self.feature_names_used_for_training)]
-
+        new_header = list(deepcopy(self.feature_names_used_for_training))
+        new_header.append(self.smiles_name)
+        descriptors.features = descriptors.features.loc[:,descriptors.features.columns.intersection(new_header)]
+        print(f"number of rows before dropping missing values {descriptors.features.shape[0]}")
+        descriptors.features.dropna(axis=0, how='any', inplace=True)
+        #self.descriptors.features.dropna(axis='rows', inplace=True, how='any')
+        print(f"number of rows after dropping missing values {descriptors.features.shape[0]}")
         # perform min-max scaling
         print("-> preprocess features (min-max scaling)")
         temp_feature_names = self.feature_preprocessor.feature_names_in_
         feature_dict = {}
         for name in temp_feature_names:
-            if name in X.columns:
-                feature_dict[name] = X[name]
+            if name in descriptors.features.columns:
+                feature_dict[name] = descriptors.features[name]
             else:
                 feature_dict[name] = 0
         temp_features = pd.DataFrame(feature_dict)
         X_preprocessed = self.feature_preprocessor.transform(temp_features)
-
+        
         # if a transformer for feature dimensionality reduction is available
+        
         if self.feature_transformer:
             X_selected = X_preprocessed[X_preprocessed.columns.intersection(self.feature_transformer.feature_names_in_)]
+            self.X_preprocessed = X_selected
             X_reduced = self.feature_transformer.transform(X_selected)
         else: # if no dimensionality reduction was performed
             X_selected = X_preprocessed[X_preprocessed.columns.intersection(self.feature_names_used_for_training)]
             X_reduced = X_selected
+        
+        self.X_reduced_predict = X_reduced
 
         # run prediction
         if use_individual_trees:
-            self.predict_with_individual_trees(X_reduced)
+            self.predict(X_reduced, use_individual_trees=True)
 
         else:
             self.predict(X_reduced)
+
         # save output
         self.save_external_predictions(descriptors)
 
-    def predict(self, X):
+    def predict(self, X, use_individual_trees=False, dataset_type='test'):
+
+        # convert X to array if model not trained with feature names
+        if type(X) == pd.DataFrame and not self.regressor.feature_names_in_.size:
+            X = X.values
+
         if self.regressor_name == 'Gaussian Process Regressor':
-            self.y_pred, self.y_pred_score = self.regressor.predict(X, return_std=True)
-        elif self.regressor_name == "KNN Regressor":
+            if dataset_type == 'test':
+                self.y_pred, self.y_pred_score = self.regressor.predict(X, return_std=True)
+            elif dataset_type == 'train':  # for training set
+                self.y_pred_train, self.y_pred_score_train = self.regressor.predict(X, return_std=True)
+            return
+
+        if self.regressor_name == "KNN Regressor":
             self.get_KNN_pred_and_score(X)
+            return
+
+        if self.regressor_name == 'Random Forest Regressor':
+            if use_individual_trees:
+                individual_tree_predictions = np.array([
+                    [tree.predict(X.values) for tree in self.regressor.estimators_]]).squeeze() # Shape: (n_estimators, n_test_samples)
+
+                # Calculate mean prediction and standard deviation across tree predictions for each test sample
+                y_pred_means = individual_tree_predictions.mean(axis=0)
+
+                print('Get AD metrics')
+                prediction_std_dev = individual_tree_predictions.std(axis=0)
+                confidence_std_dev = Util.tree_std_to_confidence(prediction_std_dev)
+                raw_predictions = y_pred_means
+                self.y_pred = Util.adjust_raw_predictions(raw_predictions)  # (adjustment with training data)
+                self.y_pred_score = confidence_std_dev
+                self.has_y_pred_score = True
+
+                return
+
+
+            # predictions from all individual trees
+            all_tree_predictions =  np.stack([tree.predict(X.values) for tree in self.regressor.estimators_], axis=0)
+
+            if dataset_type == 'train':
+                # mean prediction 
+                self.y_pred_train = np.mean(all_tree_predictions, axis=0)
+                # standard deviation (epistemic uncertainty)
+                self.y_pred_score_train = np.std(all_tree_predictions, axis=0)
+                self.has_y_pred_score = True
+
+                return
+            if dataset_type == 'test':
+                
+                # mean prediction 
+                self.y_pred = np.mean(all_tree_predictions, axis=0)
+                # standard deviation (epistemic uncertainty)
+                self.y_pred_score = np.std(all_tree_predictions, axis=0)
+                self.has_y_pred_score = True
+                return
         else:
-            self.y_pred = self.regressor.predict(X)
+            if dataset_type == 'train':
+                self.y_pred_train = self.regressor.predict(X)
+            elif dataset_type == 'test':
+                self.y_pred = self.regressor.predict(X)
 
     def get_KNN_pred_and_score(self, X):
         """
@@ -1099,65 +1231,62 @@ class Model(Pepper):
         # normalize scores (distances) between 0 and 1
         self.y_pred_score = (scores - np.min(scores)) / (np.max(scores) - np.min(scores))
 
-    @staticmethod
-    def tree_std_to_confidence(tree_std_array):
-        # Handle single float input
-        if isinstance(tree_std_array, (float, np.float64)):
-            tree_std_array = [tree_std_array]
 
-        confidence_list = []
-        for tree_std in tree_std_array:
-            # This values are based on observed deviations during training
-            max_tree_std = 0.594320  # 90% threshold during training
-            min_tree_std = max_tree_std/10
-            if tree_std < min_tree_std:
-                confidence = 1
-            elif tree_std > max_tree_std:
-                confidence = 0
-            else:
-                confidence = (-1 / (max_tree_std - min_tree_std)) * tree_std + (max_tree_std/(max_tree_std-min_tree_std))
-            confidence_list.append(confidence)
-        return confidence_list
-
-    def predict_with_individual_trees(self, X):
-        individual_tree_predictions = np.array([
-            [tree.predict(X) for tree in self.regressor.estimators_]]).squeeze() # Shape: (n_estimators, n_test_samples)
-
-        # Calculate mean prediction and standard deviation across tree predictions for each test sample
-        y_pred_means = individual_tree_predictions.mean(axis=0)
-
-        print('Get AD metrics')
-        prediction_std_dev = individual_tree_predictions.std(axis=0)
-        confidence_std_dev = self.tree_std_to_confidence(prediction_std_dev)
-        raw_predictions = y_pred_means
-        self.y_pred = 1.48222333 * raw_predictions + 0.42978124623300695  # (adjustment with training data)
-        self.y_pred_score = confidence_std_dev
-        self.has_y_pred_score = True
-
-        return
-
-    def complete_train_regressors(self):
+    def complete_train_regressors(self, run_id):
         """
 
-        @param feature_selection: Type of feature selection 'importance', 'genetic', 'sequential'
+        @param feature_selection: Type of feature selection 'importance', 'sequential'
         """
         print(f"Regressor: {self.regressor_name}")
         function_name = sys._getframe().f_code.co_name  # get the name of the function
 
         # optimize hyperparameters
-        self.perform_grid_search(self.X_train, save_results=True)
+        # maybe it is important to set the alpha values aswell before optimization
+        # I will set a scalar value that is the mean of the std values squared
 
-        # Select features
-        self.select_features()  # Here features are truly selected self.features_names -> self.selected_features_names
-        self.reduce_feature_space() # Here the space is reduced
 
-        # optimize hyperparameters after feature selection, but only if features were selected or reduced
-        if self.feature_selection_method not in [None, 'None'] or self.feature_reduction_method not in [None, 'None']:
-            self.perform_grid_search(self.X_train_reduced, save_results=True)
+        if self.regressor_name == 'Gaussian Process Regressor' and self.has_target_variable_std():
+            self.alpha_outer_train= self.y_train_std.values**2
+            self.alpha_outer_test = self.y_test_std.values**2
 
+
+        print(" Using custom inner cv to handle alpha values")
+        self.custom_cv(save_results=True)
+
+        self.select_features()  # select features based on regressor
+
+        if self.feature_reduction_method not in [None, 'None', []]:
+            method = PCA(n_components=self.best_reduction_params)
+
+            method.fit(self.X_train_selected)
+
+            self.X_train_reduced = method.transform(self.X_train_selected)
+            if not self.X_test_selected.empty:
+                self.X_test_reduced = method.transform(self.X_test_selected)
+            self.feature_transformer = method
+
+            print(f"explained variance ratio:{method.explained_variance_ratio_}")
+            self.reduced_features_names = []
+            [self.reduced_features_names.append(f'PC{i+1}') for i in range(0,self.best_reduction_params) if self.best_reduction_params]
+
+        else:
+            self.no_feature_reduction()
+
+        # else:
+        #     self.perform_grid_search(self.X_train, save_results=True)
+        #     self.select_features()  # select features based on regressor
+        #     self.reduce_feature_space()  # apply dimensionality reduction
+        
         # config and train final model()
         self.set_regressor_parameters(self.best_regressor_model, self.best_regressor_params)
         self.train_model()
+        
+        # save train data fits
+        self.predict(self.X_train_reduced, dataset_type='train')
+
+        self.save_scores(run_id, 'train')
+        self.save_predicted_values(run_id, stage='train')
+        
 
         # visualize selected features where applicable
         if self.feature_selection_method in ['sequential', 'importance']:
@@ -1178,15 +1307,22 @@ class Model(Pepper):
                 self.regressor_params[p] = parameters[p][0]
             else:
                 self.regressor_params[p] = parameters[p]
+        
+        # need to convert kernel string to actual kernel object
+        if 'kernel' in self.regressor_params:
+            if type(self.regressor_params['kernel']) == str:
+                self.regressor_params['kernel'] = Util.get_kernel_from_string(self.regressor_params['kernel'])
         self.regressor.set_params(**self.regressor_params)
 
+   
     def train_model(self):
         """
         Fit self.regressor with self.X_train_reduced and self.y_train
         """
         if self.regressor_name == 'Gaussian Process Regressor' and self.has_target_variable_std():
-            self.regressor.set_params(alpha=self.y_train_std.values)
+            self.regressor.set_params(alpha=self.y_train_std.values**2) # convert std to variance
         self.regressor.fit(self.X_train_reduced, self.y_train.values)
+
 
     def save_optimized_settings(self, analysis_type):
         """
@@ -1237,7 +1373,7 @@ class Model(Pepper):
             fraction_dict[np.round(fraction,1)] = indices
         return fraction_dict
 
-    def complete_evaluate_models(self, run_id, train_fraction = 1, visualize=True):
+    def complete_evaluate_models(self, run_id, train_fraction = 1, visualize=True, get_nearest_neighbors=False):
         """
         Evaluate a model by predicting y for the test set, saving scores, and visualizing predicted vs. true values
         @param run_id: split ID, e.g. from k-fold CV
@@ -1247,11 +1383,11 @@ class Model(Pepper):
         function_name = sys._getframe().f_code.co_name
 
         # predict target values for test set
-        self.predict_for_test_set()
+        self.predict(self.X_test_reduced, dataset_type='test')
 
         # save scores to files
         self.save_scores(run_id, 'test', train_fraction)
-        self.save_predicted_values(run_id)
+        self.save_predicted_values(run_id, stage='test', get_nearest_neighbors=get_nearest_neighbors)
 
         # visualize prediction on test set
         if visualize:
@@ -1259,20 +1395,14 @@ class Model(Pepper):
             v.scatterplot_predicted_vs_test()
             # Additional plots for regressors providing prediction scores
             if self.regressor_name == 'Gaussian Process Regressor':
-                threshold_list = [0.5, 0.65, 0.8, 1] # for GPR, this represents the predicted standard deviation of y
+                threshold_list = [0.5, 0.6, 0.7, 1] # for GPR, this represents the predicted standard deviation of y
                 v.plot_performance_vs_score_threshold(threshold_list)
                 v.scatterplots_by_thresholds(threshold_list)
             elif self.regressor_name == 'KNN Regressor':
                 threshold_list = [0.2, 0.4, 0.6, 1] # for KNN, this is the average distance to neighbors
                 v.plot_performance_vs_score_threshold(threshold_list) # , reverse = True
                 v.scatterplots_by_thresholds(threshold_list)  # , reverse = True
-
-    def predict_for_test_set(self):
-        """
-        Predict the target variable (y_pred) and, if available, a prediction score (y_pred_score) for the test set
-        """
-        # predict y for test set
-        self.predict(self.X_test_reduced)
+            
 
     def drop_missing_target_variable_value(self):
         """
@@ -1304,3 +1434,214 @@ class Model(Pepper):
         self.features = joint_data[self.features.columns]
         self.target_variable = self.data[self.target_variable_name]
         return
+
+    
+    def custom_cv(self, save_results = False):
+        function_name = sys._getframe().f_code.co_name 
+        kf = KFold(n_splits=5, shuffle=True, random_state=self.random_state)
+
+        param_grid = self.regressor_params
+        keys, values = zip(*param_grid.items())
+
+
+        best_score = -np.inf
+        best_params = None
+        # add feature reduction params to the combo
+        if self.feature_reduction_method not in [None, 'None']:
+            values += (self.feature_reduction_params['n_components'],)
+            keys += ('n_components',)
+
+        print(f"Total combinations to evaluate: {np.prod([len(v) for v in values])}")
+        for combo in product(*values):
+            # only pack the parameters for the first two --> these are for the regressor
+                
+            params = dict(zip(keys,combo))
+            
+            # make sure to delete n_components from params since it is not a regressor parameter
+            if 'n_components' in params:
+                n_components = params['n_components']
+                del params['n_components']
+            
+            scores = []
+
+            # the kernel needs to be converted from string to actual kernel object
+            if 'kernel' in params:
+                params['kernel'] = Util.get_kernel_from_string(params['kernel'])
+
+            for train_idx, val_idx in kf.split(self.X_train):
+
+                X_train_cv, X_val_cv = self.X_train.iloc[train_idx], self.X_train.iloc[val_idx]
+                y_train_cv, y_val_cv = self.y_train.iloc[train_idx], self.y_train.iloc[val_idx]
+                
+                regressor = clone(self.regressor)
+                regressor.set_params(**params)
+                
+                
+                # dimension reduction
+                if self.feature_reduction_method not in [None, 'None']:
+                    # fit PCA on training data of this fold
+                    pca = PCA(n_components=n_components)
+                    X_train_cv = pca.fit_transform(X_train_cv)
+                    X_val_cv = pca.transform(X_val_cv)
+                    self.feature_transformer = pca
+                
+                if self.regressor_name == 'Gaussian Process Regressor':
+                    alpha_train = self.alpha_outer_train[train_idx] if self.alpha_outer_train is not None else 1e-10
+                    regressor.set_params(alpha=alpha_train)
+
+                regressor.fit(X_train_cv, y_train_cv)
+                y_pred_cv = regressor.predict(X_val_cv)
+                scores.append(r2_score(y_val_cv, y_pred_cv))
+            
+            avg_score = np.mean(scores)
+            
+            if avg_score > best_score:
+                best_score = avg_score
+                best_params = params
+                best_reduction_n_components = combo[-1] if self.feature_reduction_method not in [None, 'None'] else None
+            print(f"Best CV R2 score: {best_score} with params: {best_params} and n_components: {best_reduction_n_components}")
+       
+        # stroing the best params
+        # save optimized parameters
+        self.best_regressor_model = self.regressor
+        self.best_regressor_params = best_params
+        self.best_reduction_params = best_reduction_n_components
+
+        # save to file
+        if save_results:
+            self.save_optimized_settings(function_name)
+
+        print(f"Final hyperparameters: {self.best_regressor_params} n_components: {self.best_reduction_params}")
+        print(f"Best params: {self.best_regressor_params} and n_components: {self.best_reduction_params} with CV R2: {best_score} ")
+
+
+    def calculate_min_distance(self, test, train, k=5):
+        """
+        For each training point, calculate the min distance in feature space. 
+        The euclidean distance is used.
+        """
+    
+        # Calculate distance matrix
+        dist_matrix = distance_matrix(train, test)
+
+        dist_matrix = dist_matrix.T  
+
+        idx_part = np.argpartition(dist_matrix, k, axis=1)[:, :k]
+
+        dist_part = np.take_along_axis(dist_matrix, idx_part, axis=1)
+
+        sorted_order = np.argsort(dist_part, axis=1)
+        k_nearest_sorted = np.take_along_axis(dist_part, sorted_order, axis=1)
+        k_nearest_idx = np.take_along_axis(idx_part, sorted_order, axis=1)
+
+        return k_nearest_sorted, k_nearest_idx
+    
+    def make_morgan_fps(self, smiles, radius=2, n_bits=2048, use_chirality=False):
+
+        fps = []
+        valid_mask = []
+        for s in smiles:
+            mol = Chem.MolFromSmiles(s)
+            if mol is None:
+                fps.append(None)
+                valid_mask.append(False)
+                continue
+            generator = Chem.AllChem.GetMorganGenerator(radius=2, fpSize=n_bits)
+            fp = generator.GetSparseCountFingerprint(mol)
+            fps.append(fp)
+            valid_mask.append(True)
+        return fps, np.array(valid_mask, dtype=bool)
+
+    def knn_tanimoto_morgan(self, fps_test, fps_train, k=5, radius=2, n_bits=2048, use_chirality=False, ignore_self=True):
+
+        n_q, n_t = len(fps_test), len(fps_train)
+        distances = np.empty((n_q, k), dtype=float)
+        indices   = np.empty((n_q, k), dtype=int)
+
+        # check for invalid molecules
+        valid_train_idx = [i for i, fp in enumerate(fps_train) if fp is not None]
+        valid_train_fps = [fps_train[i] for i in valid_train_idx]
+
+        for qi, qfp in enumerate(fps_test):
+            if qfp is None or len(valid_train_fps) == 0:
+                distances[qi, :] = np.nan
+                indices[qi, :]   = -1
+                continue
+
+            sims_valid = np.array(DataStructs.BulkTanimotoSimilarity(qfp, valid_train_fps), dtype=float)
+
+            
+            # map back to original indices
+            sims = np.full(n_t, -1.0, dtype=float)
+            sims[np.array(valid_train_idx)] = sims_valid
+
+            if ignore_self and (fps_test is fps_train):
+                sims[qi] = -np.inf  # ignore self-match
+
+            # top-k largest similarities
+            mask = np.isfinite(sims)
+            k_eff = min(k, int(np.sum(mask)))
+            if k_eff == 0:
+                distances[qi, :] = np.nan
+                indices[qi, :]   = -1
+                continue
+
+            topk_idx = np.argpartition(-sims[mask], k_eff - 1)[:k_eff]
+            topk_sims = sims[topk_idx]
+
+            sorted_idx = np.argsort(-topk_sims)
+            topk_idx = topk_idx[sorted_idx]
+            topk_sims = topk_sims[sorted_idx]
+
+            # input a padding if less than k neighbors found
+            if k_eff < k:
+                topk_idx = np.pad(topk_idx, (0, k - k_eff), 'constant', constant_values=-1)
+                topk_sims = np.pad(topk_sims, (0, k - k_eff), 'constant', constant_values=np.nan)
+
+            indices[qi, :] = topk_idx[:k]
+            distances[qi, :] = 1.0 - topk_sims[:k]
+        return distances, indices
+    
+
+    def calculate_prediction_probabilities(self, mu, sigma, T_P, T_vP):
+        log_T_P = np.log10(T_P)
+        log_T_vP = np.log10(T_vP)
+
+        zP = (log_T_P - mu) / sigma
+        zvP = (log_T_vP - mu) / sigma
+
+        p_nP = norm.cdf(zP)
+        p_P = 1 - norm.cdf(zP) 
+        p_vP = 1 - norm.cdf(zvP)
+
+        return p_nP, p_P, p_vP
+    
+    def create_prediction_probabilities(self):
+        self.prediction_probabilities = {}
+
+        if len(self.y_pred_score) != 0:
+            P_nP, P_P, P_vP = self.calculate_prediction_probabilities(
+                mu=self.y_pred,
+                sigma=self.y_pred_score,
+                T_P=120,
+                T_vP=180
+            )
+        else:
+            P_nP, P_P, P_vP = [[np.nan]*len(self.y_pred)] *3
+
+        self.prediction_probabilities['non-Persistent'] = P_nP
+        self.prediction_probabilities['Persistent'] = P_P
+        self.prediction_probabilities['very Persistent'] = P_vP
+        self.prediction_probabilities[self.smiles_name] = self.smiles_predicted.values
+
+        self.prediction_probabilities = pd.DataFrame(self.prediction_probabilities)
+    
+    def save_model(self):
+        """
+        Save the trained model to a file using pickle.
+        @param filename: Path to the file where the model will be saved.
+        """
+        filename = f'final_model_{self.regressor_name_short}.pkl'
+        filepath = os.path.join(self.get_data_directory(), filename)
+        joblib.dump(self, filepath)
+        print(f'Model saved to {filepath}')

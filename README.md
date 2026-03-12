@@ -57,10 +57,14 @@ predict_breakthrough_wwtp.py
 Please refer to the main publication for further details
 
 ### Confidently uncertain: Probabilistic machine learning to predict soil biotransformation half-lives - Salz et al., 2026
-All data and code needed to reproduce the analyses figures from the publication:
+Code to reproduce the predictions from the publication:
 ```
 cd scripts
 python predict_soil_halflives.py
+```
+The code to reproduce analyses, tables and figures can be found in the jupyter notebook:
+```
+jupyter notebook soil_half_lives_additional_analyses.ipynb
 ```
 
 ## Sessions 

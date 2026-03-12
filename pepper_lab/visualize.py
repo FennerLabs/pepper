@@ -11,15 +11,13 @@ from scipy.ndimage import label
 from pepper_lab.pepper import Pepper
 from sklearn.metrics import mean_squared_error, r2_score
 from pepper_lab.util import *
-# from openTSNE.tsne import TSNE
 
-# # Umap related imports
-# import umap
-# import umap.plot
 from sklearn.cluster import KMeans
-from rdkit import Chem
+from rdkit import Chem, DataStructs
 from rdkit.Chem import Draw
 from rdkit.Chem import rdFMCS
+from scipy.stats import norm, spearmanr
+from matplotlib.lines import Line2D
 
 matplotlib.use('Agg')
 
@@ -65,13 +63,299 @@ class Visualize(Pepper):
     def set_setup_name(self, setup_name: str):
         self.setup_name = setup_name
 
-    def modeling_summary(self):
-        training_directory = self.object_path  # todo:
-        df = pd.read_csv(training_directory, sep='\t')
+
+    def calibration_plots(self, prediction_type='cv', model=None, feature_space: str = 'all', feature_reduction: str = 'None'):
+        
+        self.set_data_directory(os.path.join(self.get_data_directory(), model.regressor_name))
+        self.build_directory_structure()
+
+        output_file_path_confidence = os.path.join(self.get_data_directory(),
+                                'confidence_calibration_plot_{}_{}_{}_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                        self.setup_name, prediction_type, feature_space, feature_reduction))
+        output_file_path_error = os.path.join(self.get_data_directory(),
+                                 'error_calibration_plot_{}_{}_{}_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name, prediction_type, feature_space, feature_reduction))
+        output_file_path_distance = os.path.join(self.get_data_directory(),
+                                 'distance_plot_{}_{}_{}_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name, prediction_type, feature_space, feature_reduction))
+        output_file_path_distance_cv = os.path.join(self.get_data_directory(),
+                                 'distance_plot_{}_{}_{}_{}_{}_{}_cv.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name, prediction_type, feature_space, feature_reduction))
+
+        if prediction_type == 'cv':
+            self.predicted = self.object.predicted_target_variable_test
+        if prediction_type == 'holdout':
+            self.predicted = self.object.predicted_target_variable_holdout
+        
+        
+        # confidence based calibration plot
+        # define nominal levels
+        nominal_levels = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
+            
+        # calculate empirical levels
+        empirical_levels = []
+        for alpha in nominal_levels:
+            z = norm.ppf((1 + alpha) / 2)
+            lower = self.predicted['predicted'] - z * self.predicted['predicted_score']
+            upper = self.predicted['predicted'] + z * self.predicted['predicted_score']
+            count_within_interval = np.sum((self.predicted['experimental'] >= lower) & (self.predicted['experimental'] <= upper))
+            empirical_level = count_within_interval / len(self.predicted)
+            empirical_levels.append(empirical_level)
+
+        # calculate ece
+        ece = np.mean(np.abs(np.array(empirical_levels) - np.array(nominal_levels)))
 
 
-    def load_df_from_path(self, file_name: str): #todo: what is this function for?
-        object_df = pd.read_csv(self.object_path + file_name)
+        # plot calibration curve
+        sns.set(rc={"figure.figsize": (5, 5)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+
+        plt.scatter(nominal_levels, empirical_levels, marker='o', label='Empirical')
+        plt.plot([0, 1], [0, 1], ls='--', color='black', label='Ideal')
+        plt.xlabel('Nominal confidence level')
+        plt.ylabel('Empirical confidence level')
+        plt.legend()
+        textstr = f'ECE = {ece:.3f}, n={len(self.predicted)})'
+        plt.text(0.6, 0.2, textstr, fontsize=10)
+        print('Saving figure to', output_file_path_confidence)
+        plt.savefig(output_file_path_confidence)
+        plt.close()
+
+        # error-based calibration plot
+        batches = np.sqrt(len(self.predicted))  # number of batches
+
+        # sort the predictions by predicted uncertainty
+        df_sorted = self.predicted.sort_values(by='predicted_score').reset_index(drop=True)
+        batch_size = int(np.ceil(len(df_sorted) / batches))
+
+        empirical_rmse = []
+        empirical_rmu = []
+        empirical_min_distance = []
+
+        for i in range(int(batches)):
+            start_index = i * batch_size
+            end_index = min((i + 1) * batch_size, len(df_sorted))
+            batch = df_sorted.iloc[start_index:end_index]
+
+            rmse = np.sqrt(mean_squared_error(batch['experimental'], batch['predicted']))
+            rmu = np.sqrt(np.mean(batch['predicted_score']))
+            min_distance = np.mean(batch['nearest_distance_1'])
+
+            empirical_rmse.append(rmse)
+            empirical_rmu.append(rmu)
+            empirical_min_distance.append(min_distance)
+
+        # calculate ENCE
+        ence = np.mean(np.abs(np.array(empirical_rmse) - np.array(empirical_rmu)) / np.array(empirical_rmu))
+        
+        # plot error-based calibration curve
+        sns.set(rc={"figure.figsize": (5, 5)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+        plt.scatter(empirical_rmu, empirical_rmse, marker='o', label='Empirical')
+        plt.plot([0, max(empirical_rmu + empirical_rmse)], [0, max(empirical_rmu + empirical_rmse)], ls='--', color='black', label='Ideal')
+        plt.xlabel('Empirical RMU')
+        plt.ylabel('Empirical RMSE')
+        plt.title('Error-based Calibration Plot')
+        plt.legend()
+        textstr = f'ENCE = {ence:.3f}\nn={len(self.predicted)}, batches={int(batches)}'
+        plt.text(0.95, 0.05, textstr, fontsize=10)
+        print('Saving figure to', output_file_path_error)
+        plt.savefig(output_file_path_error)
+        plt.close()
+
+        # RMU vs min distance plot
+        spearmans_dist = spearmanr(empirical_rmu, empirical_min_distance)
+
+        sns.set(rc={"figure.figsize": (5, 5)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+        plt.scatter(empirical_rmu, empirical_min_distance, marker='o', label='Empirical')
+        plt.xlabel('Empirical RMU')
+        plt.ylabel('Min Distance to Train')
+        ax = plt.gca()
+        textstr = f'Spearman r = {spearmans_dist.correlation:.2f}\nn={len(self.predicted)}, batches={int(batches)}'
+        ax.text(0.95, 0.05, textstr,
+            fontsize=10, verticalalignment='bottom', horizontalalignment='right',
+            transform=ax.transAxes)
+        print('Saving figure to', output_file_path_distance)
+        plt.savefig(output_file_path_distance)
+        plt.close()
+
+        # RMU vs min distance plot with folds shown in different colors
+        if prediction_type == 'cv':
+            textstr = ''
+            
+            for fold in self.predicted['setup_name'].unique():
+                fold_data = self.predicted[self.predicted['setup_name'] == fold]
+                
+
+                batches = np.sqrt(len(fold_data))  # number of batches
+
+                # sort the predictions by predicted uncertainty
+                df_sorted = fold_data.sort_values(by='predicted_score').reset_index(drop=True)
+                batch_size = int(np.ceil(len(df_sorted) / batches))
+
+                empirical_rmu = []
+                empirical_min_distance = []
+                for i in range(int(batches)):
+                    start_index = i * batch_size
+                    end_index = min((i + 1) * batch_size, len(df_sorted))
+                    batch = df_sorted.iloc[start_index:end_index]
+
+                    rmu = np.sqrt(np.mean(batch['predicted_score']))
+                    min_distance = np.mean(batch['nearest_distance_1'])
+
+                    empirical_rmu.append(rmu)
+                    empirical_min_distance.append(min_distance)
+
+                # Create a DataFrame for the empirical values
+                df_empirical = pd.DataFrame({
+                    'RMU': empirical_rmu,
+                    'Min_Distance': empirical_min_distance,
+                    'Fold': fold,
+                    'spearman_r': spearmanr(empirical_rmu, empirical_min_distance).correlation,
+                    'batches': int(batches),
+                    'n': len(fold_data)
+                })
+
+                # Append the empirical DataFrame to the main DataFrame
+                if 'df_empirical_all' not in locals():
+                    df_empirical_all = df_empirical
+                else:
+                    df_empirical_all = pd.concat([df_empirical_all, df_empirical], ignore_index=True)
+            # Plot the RMU vs Min Distance for all folds
+            plt.figure(figsize=(8, 6))
+            sns.scatterplot(data=df_empirical_all, x='RMU', y='Min_Distance', hue='Fold', alpha=0.7)
+            plt.xlabel('RMU')
+            plt.ylabel('Min Distance')
+            plt.title('RMU vs Min Distance by Fold')
+            plt.legend(title='Fold')
+            print('Saving figure to', output_file_path_distance_cv)
+            for fold in self.predicted['setup_name'].unique():
+                fold_df = df_empirical_all[df_empirical_all['Fold'] == fold]
+                textstr += f'Fold {fold[-1]}: Spearman r = {fold_df["spearman_r"].iloc[0]:.2f}, n={fold_df["n"].iloc[0]}, batches={fold_df["batches"].iloc[0]}\n'
+
+            plt.text(1.1, 0.0, textstr,
+                fontsize=6, verticalalignment='bottom', horizontalalignment='right',
+                transform=ax.transAxes)
+            plt.savefig(output_file_path_distance_cv)
+
+            plt.close()
+
+    def parity_predicted_vs_test(self, prediction_type='cv', model=None, feature_space: str = 'all', feature_reduction: str = 'None'):
+        assert self.object_name == 'Modeling', \
+            "This function cannot be applied to the object {}".format(self.object_name)
+        sns.set(rc={"figure.figsize": (5, 5)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+        self.set_data_directory(os.path.join(self.get_data_directory(), model.regressor_name))
+        self.build_directory_structure()
+        output_file_path = os.path.join(self.get_data_directory(),
+                                 'scatterplot_pred_vs_test_{}_{}_{}_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name, prediction_type, feature_space, feature_reduction))
+        if prediction_type == 'cv':
+            self.predicted = self.object.predicted_target_variable_test
+        if prediction_type == 'holdout':
+            self.predicted = self.object.predicted_target_variable_holdout
+        df = pd.DataFrame()
+
+        df['Experimental'] = self.predicted['experimental']
+        df['Predicted'] = self.predicted['predicted']
+        df['fold'] = self.predicted['setup_name']
+
+        # # check if prediction score is available
+        # if 'predicted_score' in self.predicted.columns:
+        #     df['Prediction_score'] = self.predicted['predicted_score']
+        #     ax = sns.scatterplot(x='Experimental', y='Predicted', hue='fold', data=df, palette="coolwarm")
+        #     ax.errorbar(x=df['Experimental'],y=df['Predicted'],yerr=df['Prediction_score'], fmt='.',ms=0, alpha=0.1, elinewidth=0.5, color='black')
+        
+        # else:
+        ax = sns.scatterplot(x='Experimental', y='Predicted', hue='fold', data=df)
+
+        # if 'experimental_std' in self.object.predicted_target_variable_test.columns:
+        #     df['Experimental_std'] = self.object.predicted_target_variable_test['experimental_std']
+        #     df['Experimental_std'] = df['Experimental_std'].fillna(0)
+        #     try:
+        #         print('trying to add error bars')
+        #         ax.errorbar(x=df['Experimental'], y=df['Predicted'], xerr=df['Experimental_std'], fmt='.', ms=0, alpha=0.1, elinewidth=0.5, color='black')
+        #     except ValueError:
+        #         print('Are there nan values in the the standard deviation?')
+        #         print(self.object.predicted_target_variable_test['experimental_std'].isna().sum())
+        #         pass
+
+        # Add +/-1 log unit lines
+        min_val = min(df['Experimental'].min(), df['Predicted'].min()) * 0.9
+        max_val = max(df['Experimental'].max(), df['Predicted'].max()) * 1.1
+
+        ax.plot([min_val, max_val], [min_val, max_val], ls='-', color='black')
+        ax.plot([min_val + 1, max_val], [min_val, max_val - 1], ls='--', color='black')
+        ax.plot([min_val, max_val - 1], [min_val + 1, max_val], ls='--', color='black')
+        ax.set(xlim=[min_val, max_val], ylim=[min_val, max_val])
+        ax.legend_.set_title(None)
+        
+        if prediction_type == 'cv':
+        # add r2 and rmse of each fold
+            folds = df['fold'].unique()
+            textstr = ''
+            for fold in folds:
+                df_fold = df[df['fold'] == fold]
+                r2 = r2_score(df_fold['Experimental'], df_fold['Predicted'])
+                rmse = np.sqrt(mean_squared_error(df_fold['Experimental'], df_fold['Predicted']))
+                textstr += f'Fold {fold[-1]}: R2 = {r2:.2f}, RMSE = {rmse:.2f}, n = {len(df_fold)}\n'
+
+
+            # average over all folds
+            r2_all = r2_score(df['Experimental'], df['Predicted'])
+            rmse_all = np.sqrt(mean_squared_error(df['Experimental'], df['Predicted']))
+
+            # add a line for average
+            textstr += '-----------------------------------------------------\n'
+            textstr += f'Avg. :   R2 = {r2_all:.2f}, RMSE = {rmse_all:.2f}, n = {len(df)}\n'
+
+
+
+            # add text box to plot
+            ax.text(0.95, 0.05, textstr, transform=ax.transAxes, fontsize=6,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.5))
+
+        elif prediction_type == 'holdout':
+            r2 = r2_score(df['Experimental'], df['Predicted'])
+            rmse = np.sqrt(mean_squared_error(df['Experimental'], df['Predicted']))
+            textstr = f'R2 = {r2:.2f}, RMSE = {rmse:.2f}'
+            ax.text(0.95, 0.05, textstr, transform=ax.transAxes, fontsize=10,
+                    verticalalignment='bottom', horizontalalignment='right',
+                    bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.5))
+    
+        print('Saving figure to', output_file_path)
+        plt.savefig(output_file_path)
+        plt.close()
+
+    def uncertainty_distribution_plots(self, prediction_type= 'cv', model=None, feature_space: str = 'all', feature_reduction: str = 'None'):
+        sns.set(rc={"figure.figsize": (5, 5)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+        output_file_path = os.path.join(self.get_data_directory(),
+                                 'uncertainty_distribution_{}_{}_{}_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name, prediction_type, feature_space, feature_reduction))
+        if prediction_type == 'cv':
+            self.predicted = self.object.predicted_target_variable_test
+        if prediction_type == 'holdout':
+            self.predicted = self.object.predicted_target_variable_holdout
+        
+        ax = sns.histplot(x='predicted_score', data=self.predicted )
+
+        print("Save ")
+        plt.savefig(output_file_path)
+        plt.close()
+
 
     def scatterplot_predicted_vs_test(self):
         assert self.object_name == 'Model', \
@@ -124,6 +408,7 @@ class Visualize(Pepper):
         plt.savefig(output_file_path)
         plt.close()
 
+
     def boxplot_scatterplot_CV_performance(self, by_categories=['regressor', 'descriptors']):
         """
         Plot cross-validation performance by different categories in a scatter_box_plot
@@ -145,7 +430,6 @@ class Visualize(Pepper):
         assert self.object_name == 'Modeling', \
             "This function cannot be applied to the object {}".format(self.object_name)
         data = self.object.test_scores
-        data.rename(columns={'r2': 'R2', 'rmse': 'RMSE'}, inplace =True)
 
         self.performance_box_plots(data=data, categories=categories, palette=self.get_color_palette_by_category(categories[0]))
 
@@ -183,6 +467,7 @@ class Visualize(Pepper):
 
     # distribution of target variable
     def plot_target_variable_distribution(self, mean_name: str, std_name: str,
+                                          count_variable = "DT50_count",
                                           cutoff_value: int = 10,
                                           include_BI: bool = False,
                                           BI_mean_name: str = 'DT50_log_bayesian_mean',
@@ -200,15 +485,17 @@ class Visualize(Pepper):
                                           constrained_layout=True, figsize=(7, 3))  # 1, 2, figsize=(7, 3))  # rows, columns
         sns.set_context("paper")
         df = self.object.cpd_data
-        df_top_k = self.object.cpd_data.loc[self.object.cpd_data["DT50_count"]>=cutoff_value]
+        df_top_k = self.object.cpd_data.loc[self.object.cpd_data[count_variable]>=cutoff_value]
         print("Dataset with {} or more reported experimental values:".format(cutoff_value))
         print("\t - Number of compounds: {}".format(len(df_top_k)))
-        print("\t - Distribution of the target variable: mean = {}, std = {}".format(
+        print("\t - Distribution of the target variable: mean = {}, std = {}, median = {}".format(
             np.round(np.mean(df_top_k[mean_name]), 2),
-            np.round(np.std(df_top_k[mean_name]), 2)))
-        print("\t - Distribution of the standard deviation of the target variable: mean = {}, std = {}".format(
+            np.round(np.std(df_top_k[mean_name]), 2),
+            np.round(np.median(df_top_k[mean_name]), 2)))
+        print("\t - Distribution of the standard deviation of the target variable: mean = {}, std = {}, median = {}".format(
             np.round(np.mean(df_top_k[std_name]), 2),
-            np.round(np.std(df_top_k[std_name]), 2)))
+            np.round(np.std(df_top_k[std_name]), 2),
+            np.round(np.median(df_top_k[std_name]), 2)))
         sns.kdeplot(data=df, x=mean_name, fill=True, common_norm=False, alpha=.6, linewidth=0,
                     color=self.color_palette_3[0],
                     cut=0, ax=axes['left'], label='Descriptive')
@@ -230,6 +517,7 @@ class Visualize(Pepper):
         print("Saving figure to {}".format(output_filename))
         plt.savefig(output_filename)
         plt.close()
+
 
     def scatter_box_plot(self,data: pd.DataFrame, category: str ,palette: list):
         """
@@ -287,6 +575,7 @@ class Visualize(Pepper):
         @param palette: color palette with enough colors to cover all values available for the first provided category (categories[0])
         """
         # create new column in data frame for combinations
+        data.replace(np.nan, 'None', inplace=True)
         data['combination'] = data[categories].agg('\nx\n'.join, axis=1)
         number_of_boxes = len(data['combination'].unique())
 
@@ -398,7 +687,7 @@ class Visualize(Pepper):
         sns.set_theme(style="whitegrid")
         sns.set_style("ticks")
         sns.set_context(self.context)
-        df = self.object.predicted_target_variable
+        df = self.object.predicted_target_variable_test
         assert df.get('predicted_score') is not None, "A prediction score must be provided"
         df.sort_values(by='predicted_score', inplace=True)
         colors = sns.color_palette('magma', 4)
@@ -453,7 +742,7 @@ class Visualize(Pepper):
         """
         assert self.object_name == 'Model', \
             "This function cannot be applied to the object {}".format(self.object_name)
-        df = self.object.predicted_target_variable
+        df = self.object.predicted_target_variable_test
         assert df.get('predicted_score') is not None, "A prediction score must be provided"
         output_filename = os.path.join(self.get_data_directory(),
                                  'scatterplots_by_threshold_{}_{}_{}_{}.pdf'.format(self.data_type, self.tag,
@@ -545,6 +834,8 @@ class Visualize(Pepper):
             return '#bea5a9'
         elif feature == 'mordred':
             return '#a00039'
+        elif feature == 'avalonfps':
+            return '#2f4858'
         elif feature == 'clogp':
             return '#f7f5dd'
         elif feature == 'plant_fp':
@@ -552,43 +843,10 @@ class Visualize(Pepper):
         elif feature == 'rdkitfps':
             return '#32222b'
         elif feature[:2] == 'PC':
-            return '#32222b'
+            return '#c3fcf1'
         else:
             raise NotImplementedError(f'No color defined for {feature} feature space')
 
-    # #------------------------------------#
-    # # openTSNE related stuff  #
-    # #------------------------------------#
-    # def train_my_openTSNE(self, training_fingerprint=None, training_fingerprint_directory='', load_from_csv=False):
-    #     if load_from_csv:
-    #         training_fingerprint = pd.read_csv(training_fingerprint_directory)
-    #
-    #     tsne = TSNE(
-    #         perplexity=100,
-    #         n_iter=2000,
-    #         metric='jaccard',
-    #         random_state=42,
-    #         verbose=True,
-    #     )
-    #     self.embedding_train = tsne.fit(training_fingerprint)
-    #
-    # def get_openTSNE_embedding(self, my_mfps, load_from_csv=False, load_embedding_from='directory.sav'):
-    #     if load_from_csv:
-    #         # load the model from disk
-    #         filename = 'open_tsne_trained.sav'
-    #         file_directory = os.path.join(load_embedding_from, filename)
-    #         loaded_embedding = pickle.load(open(file_directory, 'rb'))
-    #         self.embedding_train = loaded_embedding
-    #
-    #     # Get the morgan fingerprints but remove the smiles if present
-    #     if self.object.smiles_name in my_mfps.columns:
-    #         my_mfps.drop(self.object.smiles_name, axis=1, inplace=True)
-    #
-    #     # Transform the mfps
-    #     self.embedding_test = self.embedding_train.transform(my_mfps)
-    #
-    #     self.embedding_for_plot['tsne_v1'] = self.embedding_test[:, 0]
-    #     self.embedding_for_plot['tsne_v2'] = self.embedding_test[:, 1]
 
     def get_embedding_plot(self, plot_name='opentsne_embedding'):
         figure_directory = self.get_data_directory()
@@ -597,49 +855,6 @@ class Visualize(Pepper):
         ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
         plt.savefig(str(figure_directory) + '/{}.pdf'.format(plot_name), bbox_inches='tight', dpi=1200)
 
-    # def show_chemical_space(self, my_mfps, plot_name, load_from_csv=False,  load_embedding_from='embedding_path'):
-    #     self.get_openTSNE_embedding(my_mfps, load_from_csv)
-    #     self.get_embedding_plot(plot_name=plot_name)
-
-    # #------------------------------------#
-    # # UMAP related stuff  #
-    # #------------------------------------#
-    #
-    # def get_umap_plot(self):
-    #     my_umap, umap_embedding = self.get_embedding()
-    #     ax = sns.scatterplot(x=umap_embedding[:, 0], y=umap_embedding[:, 1])
-    #     ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
-    #     plt.show()
-    #
-    # # Get the UMAP embedding
-    # def get_embedding(self):
-    #     my_umap = umap.UMAP(random_state=42,
-    #                         n_neighbors=50,
-    #                         min_dist=0.01,
-    #                         n_components=2)
-    #     umap_embedding = my_umap.fit_transform(self.object.features)
-    #     return my_umap, umap_embedding
-    #
-    # # Display the diagnostic embedding
-    #
-    # def show_diagnose(self, my_umap):
-    #     mapper = my_umap.fit(self.object.features)
-    #     umap.plot.diagnostic(mapper, diagnostic_type='pca')
-    #     plt.show()
-    #
-    # # Use the UMAP embedding is input in KNN(n=10) to get clusters
-    # def get_knn_clusters(self, umap_embedding):
-    #     kmeans_labels = KMeans(n_clusters=10).fit_predict(umap_embedding)
-    #     my_kmeans_labels = ['C_' + str(x) for x in kmeans_labels]
-    #     self.object.data['kmeans_labels'] = my_kmeans_labels
-    #     return self.object.data, my_kmeans_labels
-    #
-    # # plot UMAP embedding with the clusters as colors
-    # @staticmethod
-    # def show_clusters(umap_embedding, my_kmeans_labels):
-    #     ax = sns.scatterplot(x=umap_embedding[:, 0], y=umap_embedding[:, 1], hue=my_kmeans_labels, palette='viridis')
-    #     ax.legend(loc='upper left', bbox_to_anchor=(1.00, 0.75), ncol=1)
-    #     plt.show()
 
     # Print number of molecules in each cluster
     def get_clusters_dict(self):
@@ -660,9 +875,41 @@ class Visualize(Pepper):
             img = Draw.MolToImage(m1, legend=cluster_df[0])
             img.show()
 
+    def plot_halflife_distribution(self):
+        """
+        This function plots the distribution of the reported half-lives in the data set
+        """
+        sns.set(rc={"figure.figsize": (15, 15)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+        sns.set_context("paper")
+        df = self.object.model_data
+        
+        fig, axs = plt.subplots(1,2, figsize=(5, 2))
+        (ax_hl, ax_unc) = axs.flatten()
+        
+        
+        sns.kdeplot(data=df, x=self.object.target_variable_name, ax=ax_hl, fill=True, common_norm=False, alpha=.6, linewidth=0,
+                    color=self.color_palette_3[0], cut=0)
+        
+        sns.kdeplot(data=df, x=self.object.target_variable_std_name, ax=ax_unc, fill=True, common_norm=False, alpha=.6, linewidth=0,
+                    color=self.color_palette_3[0], cut=0).set(xlabel='Reported half-life standard deviation [log(days)]')
 
+        ax_hl.set_ylabel('Density')
+        ax_hl.set_xlabel('Reported half-life [log(days)]', fontsize=6)
+        ax_unc.set_ylabel('')
+        ax_unc.set_xlabel('Reported half-life standard deviation [log(days)]', fontsize=6)
+        output_filename = os.path.join(self.get_data_directory(),
+                                 'plot_halflife_distribution_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name))
+        print("Saving figure to {}".format(output_filename))
+        plt.tight_layout()
+        plt.savefig(output_filename)
+        plt.close()
 
-    def plot_experimental_parameter_distribution(self, df, reported_value_name):
+    
+    def plot_experimental_parameter_distribution(self, df, reported_value_name, hue=None):
         """
         This function first draws a pairplot of all environmenmental parameters specified in
         DataStructure.experimental_parameter_names. Second, it provides a distribution plot for each specified
@@ -683,7 +930,7 @@ class Visualize(Pepper):
         output_file_path = os.path.join(self.get_data_directory(),
                                  'pairplot_parameter_distribution_{}_{}_{}.pdf'.format(self.data_type, self.tag,
                                                                               self.setup_name))
-        sns.pairplot(df, plot_kws={'s': 20}) # hue can be added, but only works with categories
+        sns.pairplot(df, plot_kws={'s': 20}, hue=hue) # hue can be added, but only works with categories
         print(f'Saving figure to {output_file_path}')
         plt.savefig(output_file_path)
         plt.close()
@@ -717,3 +964,86 @@ class Visualize(Pepper):
         plt.tight_layout()
         plt.savefig(output_file_path)
         plt.close()
+
+
+    def plot_predicted_compounds(self, final_predictions, parent_compounds, ordered_pathways):
+        sns.set(rc={"figure.figsize": (15, 20)})
+        sns.set_theme(style="whitegrid")
+        sns.set_style("ticks")
+        sns.set_context(self.context)
+
+        
+        sns.scatterplot(
+            data=final_predictions,
+            x='logDT50_mean_predicted', y='pathway',
+            palette='blue',
+            s=100,
+            legend=None,
+            marker='x'
+        )
+        # add error bars 
+        plt.errorbar(
+            data=final_predictions,
+            x='logDT50_mean_predicted',
+            y='pathway',
+            xerr=final_predictions['logDT50_std_predicted']*1.96,  # 95% CI
+            fmt='none',
+            ecolor='blue',
+            elinewidth=1,
+            capsize=3,
+            alpha=0.7
+        )
+
+        # Add parent compound logDT50_mean as red points
+
+        sns.scatterplot(
+            data=parent_compounds[parent_compounds['node_depth'] == 0],
+            x='logDT50_mean', y='pathway_name',
+            hue='node_depth',
+            palette={0: 'red', 1: 'grey', 2: 'grey', 3: 'grey' , 4: 'grey', 5: 'grey', -99: 'grey'},
+            legend=None,
+            color='red',
+            s=30,
+            marker='o'
+        )
+        plt.errorbar(
+            data=parent_compounds[parent_compounds['node_depth'] == 0],
+            x='logDT50_mean',
+            y='pathway_name',
+            xerr=parent_compounds[parent_compounds['node_depth'] == 0]['logDT50_std']*1.96,  # 95% CI
+            fmt='none',
+            ecolor='red',
+            elinewidth=1,
+            capsize=5,
+            alpha=0.7
+        )
+
+        plt.axvline(x=np.log10(120), color='orange', linestyle='--', linewidth=2, label='120 days (P)')
+        plt.axvline(x=np.log10(180), color='red', linestyle='--', linewidth=2, label='180 days (vP)')
+        plt.text(
+            x=np.log10(120) + 0.02, y=-2, s='P', color='orange', fontsize=20, verticalalignment='center')
+        plt.text(
+            x=np.log10(180) + 0.02, y=-2, s='vP', color='red', fontsize=20, verticalalignment='center')
+
+        plt.xlabel("logDT50", fontsize=25)
+        plt.ylabel("Pathway", fontsize=25)
+        plt.xticks(fontsize=15)
+
+        legend_elements = [
+            Line2D([0], [0], marker='x', color='blue', linestyle='None', markersize=7, label='Transformation Product'),
+            Line2D([0], [0], marker='o', color='red', linestyle='None', markersize=4, label='Parent Compound'),
+
+        ]
+        plt.legend(handles=legend_elements, loc='upper left', fontsize='large')
+        plt.tight_layout()
+        # add a line to each y-axis value
+        for i in range(len(parent_compounds)):
+            plt.axhline(y=parent_compounds['pathway_name'].iloc[i], color='grey', linestyle='--', linewidth=0.5)
+        plt.savefig(os.path.join(self.get_data_directory(),
+                                 'predicted_compounds_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name)), dpi=600)
+        print("Saving figure to {}".format(os.path.join(self.get_data_directory(),
+                                 'predicted_compounds_{}_{}_{}.pdf'.format(self.data_type, self.tag,
+                                                                              self.setup_name))))
+        # plt.show()
+
