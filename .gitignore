@@ -19,14 +19,7 @@ attributes_definitions.txt
 
 ## private scripts
 scripts/.gitattributes
-scripts/albert_test.py
-scripts/calculate_descriptors_only.py
 scripts/check_wwtp_names_dict.py
-scripts/jasmin_main.py
-scripts/mo_soil_data_download.py
-scripts/mo_test.py
-scripts/water_sediment_main.py
-
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -84,7 +77,6 @@ check.py
 scripts/jose_preprocess.py
 NotesWWWTPCuration.txt
 jose_notebook.ipynb
-*.ipynb
 *.csv
 *.png
 *.numbers
@@ -95,10 +87,6 @@ jose_notebook.ipynb
 Proposed_new_data_types.txt
 notebooks_backup/*
 todo.txt
-
-
-# Ananya's file
-src/
 
 
 # Created by https://www.gitignore.io/api/macos,python,R,linux,vim,emacs,visualstudiocode,intellij
