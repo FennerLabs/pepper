@@ -12,10 +12,9 @@ from pepper_lab.visualize import Visualize
 
 
 class Predict(Pepper):
-    def __init__(self, pep: Pepper, renku=False):
+    def __init__(self, pep: Pepper):
         """
         Initiate Predict object
-        :param renku: set to True if the predictions run on renku
         """
         super().__init__()
         pep = pep
@@ -27,6 +26,9 @@ class Predict(Pepper):
         self.input_data = pd.DataFrame()
         self.file_tag = ''  # used to designate input file (for .tsv input) and output file
         self.model = None  # model used for predictions
+        self.compound_name = pep.compound_name
+        self.id_name = pep.id_name
+        self.smiles_name = pep.smiles_name
 
 
     def predict_endpoint(self, input_model, input_smiles, input_model_format='model',
@@ -37,10 +39,10 @@ class Predict(Pepper):
 
         :param input_model: Pepper.Model object or path to a pickle file containing the model object
         :param input_smiles: input SMILES as str objects, pandas DataFrame, or input file name (tab_seperated, to be
-        saved under pepper_data/predict/inputt. Mandatory columnn is 'SMILES', other columns are optional and will be
+        saved under pepper_data/predict/input. Mandatory columnn is 'SMILES', other columns are optional and will be
         copied to the output file.
         :param input_model_format: 'model' or 'pickle'
-        :param input_smiles_type: 'tsv' (tab-separated txt file) or 'smi' (e.g., 'c1ccccc1') or 'dataframe' (column header must match pepper.smiles_name)
+        :param input_smiles_type: 'tsv' (tab-separated txt file) or 'csv' (comma-separated txt file) or 'smi' (e.g., 'c1ccccc1') or 'dataframe' (column header must match pepper.smiles_name)
         :param precalculated_descriptors: set to true when descriptors are provided
         """
         print('\n############# Predict endpoints ############# ')
@@ -48,14 +50,13 @@ class Predict(Pepper):
         if input_model_format == 'model':
             self.model = input_model
         elif input_model_format == 'pickle':
+            assert 'pkl' in input_model, 'Warning: model not in pickle format'
             self.model = Predict.load_joblib(input_model)
         self.tag = self.model.tag
         self.data_type = ""
-        #self.data_type = self.model.data_type
         self.model.prediction_mode = True  # set model to prediction mode
 
         # load smiles
-        self.set_smiles_name(self.model.smiles_name)
         self.check_smiles_input(input_smiles, input_smiles_type)
 
         valid_input = True
@@ -63,7 +64,7 @@ class Predict(Pepper):
         if self.descriptors.model_data.empty:
             valid_input = False
         else: # if at least some of the smiles are valid
-            self.descriptors.set_smiles_name(self.model.smiles_name)
+            self.descriptors.set_smiles_name(self.smiles_name)
             self.descriptors.set_data_type(self.data_type) # get the data type from the model used for prediction
             self.descriptors.load_descriptors(from_csv=precalculated_descriptors, load_by_feature_name=True,
                                               feature_name_list = self.model.feature_names_used_for_training,
@@ -85,7 +86,8 @@ class Predict(Pepper):
             output_df[self.target_variable_std_name + '_predicted'] = np.nan
 
         #save to file
-        output_file_path = self.build_output_filename(os.path.join("output", 'predicted'))
+        self.data_type = self.model.data_type
+        output_file_path = self.build_output_filename(os.path.join("output", f"predicted_{self.file_tag}"))
         output_df.to_csv(output_file_path, sep='\t', index=False)
         print("Predictions are saved to {}".format(output_file_path))
 
@@ -102,31 +104,51 @@ class Predict(Pepper):
         # collect warnings
         for index, row in self.input_data.iterrows():
             warning = row['warnings']
-            if row[self.smiles_name] in self.model.predicted_target_variable[self.smiles_name].values:
-                if value_counts.get(row[self.smiles_name] , 0) > 1:
+            this_smiles = row['SMILES']
+            if this_smiles in self.model.predicted_target_variable[self.model.smiles_name].values:
+                if value_counts.get(this_smiles , 0) > 1:
                     warning += 'compound duplicated in input file'
             else:
                 if warning != '':
                     warning += ', '
                 warning += 'descriptors could not be calculated'
             new_warning_list.append(warning)
+
         self.input_data['warnings'] = new_warning_list
+
+        # round values
+        self.model.predicted_target_variable = np.round(self.model.predicted_target_variable, 3)
+        self.model.prediction_probabilities = np.round(self.model.prediction_probabilities, 3)
+
+        # check smiles_name compatibility:
+        if self.model.smiles_name != self.smiles_name:
+            self.model.predicted_target_variable.rename(columns={self.model.smiles_name: self.smiles_name}, inplace=True)
+            self.model.prediction_probabilities.rename(columns={self.model.smiles_name: self.smiles_name}, inplace=True)
+
 
         output_df = self.input_data.merge(self.model.predicted_target_variable,
                                           on=self.smiles_name, how='left')  # get predictions + scores where we have them.
         
-        output_df = output_df.merge(self.model.prediction_probabilities, on=self.smiles_name, how='left')  # get class probabilities where we have them.
+        output_df = output_df.merge(self.model.prediction_probabilities,
+                                    on=self.smiles_name, how='left')  # get class probabilities where we have them.
 
-        # # remove columns that are not needed
-        # output_df.drop(columns=['logDT50_mean_experimental','logDT50_std_experimental','compound_name'], inplace=True, errors='ignore')
+        output_df.drop_duplicates(inplace=True) # drop rows where all columns are duplicated
         
         return output_df
 
     def check_smiles_input(self, input_smiles, input_smiles_type):
         print("-> checking SMILES input")
         if input_smiles_type == 'tsv':
+            if 'tsv' not in input_smiles:
+                print('Warning: input_smiles_type (tsv) and file type do not match')
             path_to_file = os.path.join(self.data_directory, 'input', input_smiles)
             self.descriptors.model_data = pd.read_csv(path_to_file, sep='\t', encoding_errors='ignore')
+            self.file_tag = input_smiles.split('.')[0]
+        elif input_smiles_type == 'csv':
+            if 'csv' not in input_smiles:
+                print('Warning: inpt_smiles_type (csv) and file type do not match')
+            path_to_file = os.path.join(self.data_directory, 'input', input_smiles)
+            self.descriptors.model_data = pd.read_csv(path_to_file, encoding_errors='ignore')
             self.file_tag = input_smiles.split('.')[0]
         elif input_smiles_type == 'smi':
             self.descriptors.model_data = pd.DataFrame({self.smiles_name: [input_smiles]})
@@ -137,23 +159,23 @@ class Predict(Pepper):
         else:
             raise NotImplementedError("Please provide valid input smiles type")
 
-        checked_smiles = []
+        checked_smiles_list = []
         warnings = []
         for smiles in self.descriptors.model_data[self.smiles_name]:
-            try:
-                mol = Chem.MolFromSmiles(smiles, sanitize=True)
-            except Exception as e:
-                print('Text: {} \n not recognized as a SMILES string'.format(e))
-                mol = None
+            within_AD, warning = self.check_AD(smiles)
+            checked_smiles = np.nan
+            if within_AD:
+                try:
+                    mol = Chem.MolFromSmiles(smiles, sanitize=True)
+                except Exception as e:
+                    print('Text: {} \n not recognized as a SMILES string'.format(e))
+                    warnings = 'SMILES not valid'
+                    print('SMILES not valid:', smiles)
+                else:
+                    checked_smiles = Util.canonicalize_smiles(smiles)
 
-            if mol is None:
-                warnings.append('SMILES not valid')
-                checked_smiles.append(np.nan)
-                print('SMILES not valid:', smiles)
-            else:
-                can = Util.canonicalize_smiles(smiles)
-                checked_smiles.append(can)
-                warnings.append('')
+            warnings.append(warning)
+            checked_smiles_list.append(checked_smiles)
 
         # Data to keep
         self.input_data['original_' + self.smiles_name] = self.descriptors.model_data[self.smiles_name]
@@ -162,18 +184,57 @@ class Predict(Pepper):
                 self.input_data[column_name] = self.descriptors.model_data[column_name]
 
         # new data generated
-        self.input_data[self.smiles_name] = checked_smiles
+        self.input_data[self.smiles_name] = checked_smiles_list
         self.input_data['warnings'] = warnings
-        self.descriptors.model_data[self.smiles_name] = checked_smiles
+        self.descriptors.model_data[self.smiles_name] = checked_smiles_list
         self.descriptors.model_data.dropna(axis='rows', inplace=True)
+
+
+    def check_AD(self, smiles):
+        within_AD = True
+        warning = ''
+        if type(smiles) != str:
+            raise TypeError('SMILES not valid: {}'.format(smiles))
+        if smiles == '':
+            warning = 'no SMILES provided'
+        elif not self.is_not_salt(smiles):
+            warning = 'composite structure'
+            within_AD = False
+        elif not self.is_organic(smiles):
+            warning = 'inorganic molecule'
+            within_AD = False
+        elif not self.mw_below_1200(smiles):
+            warning = 'MW above 1200 Da'
+            within_AD = False
+        return within_AD, warning
+
+    @staticmethod
+    def is_organic(smiles):
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return False
+        atoms = [atom.GetSymbol() for atom in mol.GetAtoms()]
+        # must contain carbon
+        if "C" not in atoms:
+            return False
+        return True
+
+    @staticmethod
+    def is_not_salt(smiles):
+        return "." not in smiles
+
+    @staticmethod
+    def mw_below_1200(smiles):
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return False
+        mw = Chem.Descriptors.MolWt(mol)
+        return mw < 1200
 
     @staticmethod
     def load_joblib(input_model):
         return joblib.load(open(input_model, 'rb'))
-    
 
-    def calculate_class_probabilities(self):
-        pass
 
     def visualize_predictions(self):
         final_predictions = self.model.predicted_target_variable.copy()

@@ -3,21 +3,14 @@ import sys
 import os
 sys.path.insert(0, '..')
 from pepper_lab.pepper import Pepper
-from pepper_lab.datastructure import DataStructure
 from pepper_lab.datastructuresoil import DataStructureSoil
-from pepper_lab.descriptors import Descriptors
-from pepper_lab.modeling import Modeling
 from pepper_lab.bayesian import Bayesian
 
 import pandas as pd
-import numpy as np
-from scipy.stats import norm
-import emcee
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import random
-from multiprocessing import pool
 
 def figure_1(df_red, output_path):
     # mean, std
@@ -294,7 +287,6 @@ if __name__ == '__main__':
     soil_data.reduce_data()
 
     # Reproduce figures from paper
-    pep.set_data_directory(os.path.join('pepper_data', 'bayesian_inference'))
     figure_1(soil_data.cpd_data, os.path.join(pep.get_data_directory(), 'figure_1'))
 
     # define prior

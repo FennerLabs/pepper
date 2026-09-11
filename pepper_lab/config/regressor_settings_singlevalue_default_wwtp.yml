@@ -1,0 +1,43 @@
+RF:
+    name: Random Forest Regressor
+    regressor: RandomForestRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+GB:
+    name: Gradient Boosting Regressor
+    regressor: GradientBoostingRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+MLP:
+    name: MLP Regressor
+    regressor: MLPRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+SVR:
+    name: Support Vector Regressor
+    regressor: SVR
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+
+KNN:
+    name: KNN Regressor
+    regressor: KNeighborsRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+
+GPR:
+    name: Gaussian Process Regressor
+    regressor: GaussianProcessRegressor
+    regressor_params:
+    feature_selection_method: None
+    feature_reduction_method: None
+

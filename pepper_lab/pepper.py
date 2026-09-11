@@ -3,14 +3,20 @@ import os
 import re
 
 class Pepper:
-    def __init__(self, renku=False, pepper_data_location = ''):
-        self.pepper_data_location = pepper_data_location
+    def __init__(self, renku=False,
+                 pepper_data_location = None):
+        self.root_directory = os.path.join(str(pathlib.Path(__file__).parent.resolve()), '..')
+
+        if pepper_data_location is None:
+            self.pepper_data_location = os.path.join(self.root_directory, '..')
+        else:
+            self.pepper_data_location = pepper_data_location
+
         if renku:
-            self.root_directory = str(pathlib.Path(__file__).parent.resolve()) + '/../'
             self.data_directory = os.path.join(self.root_directory, 'output')
         else:
-            self.root_directory = str(pathlib.Path(os.path.expanduser("~")))
             self.data_directory = os.path.join(self.root_directory, self.pepper_data_location, 'pepper_data')
+
         self.build_directory_structure()
         self.tag = 'my_data_tag' # user-defined tag, e.g., test_data, all_data, curated_data
         self.data_type = 'other' # soil, sediment, sludge, WWTP etc.
@@ -28,6 +34,7 @@ class Pepper:
         # development only
         # normally, enviPath-python API is installed via pip, but local git repo can be used for development purpose
         self.enviPath_python_git = os.path.join(self.root_directory, 'enviPath-python')
+        self.config_location = os.path.join(self.root_directory, 'pepper_lab', 'config')
 
     def get_object_name(self):
         return re.findall(r"\.([A-Za-z]*)'", str(type(self)))[0]
@@ -151,6 +158,12 @@ class Pepper:
 
     def get_id_name(self):
         return self.id_name
+
+    def set_config_location(self, path_to_config_location):
+        self.config_location = path_to_config_location
+
+    def get_config_location(self):
+        return self.config_location
 
     def build_output_filename(self, filename_string, suffix='.tsv'):
         """

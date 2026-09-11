@@ -2,6 +2,7 @@ import getpass
 import os
 import pandas as pd
 import numpy as np
+
 from rdkit import Chem, DataStructs
 from rdkit.Chem import MACCSkeys
 from rdkit.Chem import PandasTools
@@ -12,12 +13,9 @@ padeldescriptor(d_3d=False)
 from padelpy import from_smiles
 from mordred import Calculator, descriptors
 
-from rdkit.Chem import AllChem as ac
 from rdkit.Chem import rdFingerprintGenerator
 from rdkit.Chem import Descriptors as rdkitDescriptors
 from rdkit.Avalon import pyAvalonTools
-
-from sklearn.feature_selection import VarianceThreshold
 
 # sys.path.insert(0, self.get_path_to_enviPath_python() + 'enviPath_python/') # for development only
 # sys.path.insert(0, self.get_path_to_enviPath_python())
@@ -85,26 +83,25 @@ class Descriptors(Pepper):
         # enviPath settings
         #####################
         # Default package for triggered rules: EAWAG-BBD
-        self.ep_trig_rule_package = 'http://legacy.envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1'
+        # self.ep_trig_rule_package = 'http://envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1'
         # Alternatively, the following package can be used. It includes the newer soil-specific rules.
         # For this, access and login is currently required:
-        # self.ep_trig_rule_package = 'https://envipath.org/package/55fa3a97-db19-442f-8108-954f7be95e1c'
+        self.ep_trig_rule_package = 'https://envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1'
 
         # Legacy model for rule probability calculation on legacy.envipath.org: BBD - ECC - Multi - 2023-09-05
-        self.ep_prob_relative_reasoning_id = 'https://legacy.envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1/' \
-                                             'relative-reasoning/23e1b2ec-dcc0-4389-9b65-afd52bd72e27'
+        # self.ep_prob_relative_reasoning_id = 'https://legacy.envipath.org/package/32de3cf4-e3e6-4168-956e-32fa5ddb0ce1/' \
+        #                                      'relative-reasoning/23e1b2ec-dcc0-4389-9b65-afd52bd72e27'
         # Default model on envipath.org
-        # self.ep_prob_relative_reasoning_id = ('https://envipath.org/package/134886bb-b52e-4ad6-91d3-a02cecde6d95/' \
-        #                                       'model/16790fdd-aafe-4282-9224-90d006c04416')
+        self.ep_prob_relative_reasoning_id = ('https://envipath.org/package/134886bb-b52e-4ad6-91d3-a02cecde6d95/model/16790fdd-aafe-4282-9224-90d006c04416')
 
         # Default enviPath instance
-        # self.instance_host = 'https://envipath.org/api/legacy/'
+        self.instance_host = 'https://envipath.org/api/legacy/'
         # Legacy enviPath instance
-        self.instance_host = 'https://legacy.envipath.org/'
+        # self.instance_host = 'https://legacy.envipath.org/'
 
         # Login is required for all enviPath as of 19.01.2026.
         # When using the legacy enviPath (legacy.envipath.org), ep_login_required can be turned off
-        self.ep_login_required = False
+        self.ep_login_required = True
 
     def set_data(self, data: DataStructure):
         """
@@ -267,8 +264,6 @@ class Descriptors(Pepper):
                 self.mfps_tsv = self.build_output_filename('mfps')
                 self.mfps = pd.read_csv(self.mfps_tsv, sep='\t')
                 print(f"Loading features from {self.mfps_tsv}")
-            elif load_by_feature_name and not self.model_data.empty:
-                self.calculate_morgan_fingerprints(features_to_be_calculated['mfps'])
             elif not self.model_data.empty:
                 self.calculate_morgan_fingerprints()
             else:
@@ -485,7 +480,7 @@ class Descriptors(Pepper):
             smiles = row[self.smiles_name]
 
             try:
-                fp = Chem.MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles))
+                fp = MACCSkeys.GenMACCSKeys(Chem.MolFromSmiles(smiles))
                 descriptors_id = fp.ToList()[1:]
             except RuntimeError:
                 print('Warning: No MACCS descriptor could be calculated for compound {}, smiles = {}'.format(smiles, row[
@@ -513,9 +508,10 @@ class Descriptors(Pepper):
         print('Number of substances', len(smiles_list))
         print('Batch size', batch_size, ' - Number of batches', batch_number)
         padel_df = pd.DataFrame()
-        D = {}
+
         for i in range(batch_number):
-            print('Running batch number', i, 'out of ', batch_number)
+            D = {}
+            print('Running batch number', i+1, 'out of ', batch_number)
             batch = smiles_list[i * batch_size:(i + 1) * batch_size]
             try:
                 padel_D = from_smiles(batch)
@@ -546,7 +542,7 @@ class Descriptors(Pepper):
         # self.padel[self.smiles_name] = self.padel.index
         self.padel.to_csv(self.padel_tsv, sep='\t', index=False)
 
-    def calculate_enviPath_descriptors(self, triggered=False, probabilities=False, feature_name_list = None, new_api=False):
+    def calculate_enviPath_descriptors(self, triggered=False, probabilities=False, feature_name_list = None, new_api=True):
         """
         Obtain descriptors from enviPath via enviPath-python
         :param triggered: if True, ep_trig (triggered rules) is calculated
@@ -556,7 +552,6 @@ class Descriptors(Pepper):
         """
         print('-> calculate enviPath rule descriptors')
         eP = enviPath(self.instance_host, new_api=new_api)
-
         # logging in to envipath
         if self.ep_login_required:
             user = input('Username for envipath.org: ')
@@ -579,9 +574,10 @@ class Descriptors(Pepper):
 
         # load relative reasoning for prob values
         if probabilities:
-            print("Calculating enviPath rule probabilities...")
-            relres = RelativeReasoning(eP.requester, id=self.ep_prob_relative_reasoning_id)
-            self.get_rule_probabilities(relres, feature_name_list)
+            raise NotImplementedError('Calculating rule probabilities is currently not supported.') # todo: remove when fixed
+            # print("Calculating enviPath rule probabilities...")
+            # relres = RelativeReasoning(eP.requester, id=self.ep_prob_relative_reasoning_id)
+            # self.get_rule_probabilities(relres, feature_name_list)
 
     @staticmethod
     def get_composite_rules(package, list_of_rules=None):
@@ -613,23 +609,34 @@ class Descriptors(Pepper):
             print(rule)
             name = rule.get_name()
             D[name + '-trig'] = {}
-
-            smiles_list = []
-            for index, row in self.model_data.iterrows():
-                smiles = row[self.smiles_name]
+            for simple_rule in rule.get_simple_rules():
                 try:
-                    out = rule.apply_to_smiles(smiles)
+                    reactant_smarts = simple_rule.get_smirks().split('>>')[0]
                 except:
-                    print('Could not process SMILES:', smiles)
-                    #break
-                if out == []:
-                    value = 0
-                else:
-                    value = 1
-                D[name+'-trig'][index] = value
-                smiles_list.append(smiles)
+                    print('Warning: no reactant smarts found for simple rule', simple_rule.get_name())
+                    continue
+                query = Chem.MolFromSmarts(reactant_smarts)
+                for index, row in self.model_data.iterrows():
+                    triggered = 0
+                    if D[name + '-trig'].get(index) == 1:
+                        continue # combination of parallel rule and reaction already matched
+                    smiles = row[self.smiles_name]
+                    molecule = Chem.MolFromSmiles(smiles)
+                    # try:
+                        # out = rule.apply_to_smiles(smiles)
+                    # except:
+                        # print('Could not process SMILES:', smiles)
+                        # break
+                    try:
+                        match = molecule.GetSubstructMatch(query)
+                    except:
+                        print('Warning: smarts pattern could not be parsed', reactant_smarts)
+                        match = None
+                    if match:
+                        triggered = 1
+                    D[name+'-trig'][index] = triggered
         self.ep_trig = pd.DataFrame(D)
-        self.ep_trig[self.smiles_name] = smiles_list
+        self.ep_trig[self.smiles_name] = self.model_data[self.smiles_name]
         self.ep_trig.to_csv(self.ep_trig_tsv, sep='\t', index=False)
 
     def get_rule_probabilities(self, relative_reasoning, feature_list_prob):
@@ -709,9 +716,10 @@ class Descriptors(Pepper):
             mfps = np.array([list(x) for x in mf_bv])
             print("calculated morgan fingerprints")
         else:
+            mfps = np.array()
             pass
         mfps_descriptors = pd.DataFrame(mfps)
-        self.mfps.columns = [f'Morgan-{column_name}' for column_name in self.mfps.columns]  # todo: Add names to columns otherwise they collide
+        self.mfps.columns = [f'Morgan-{column_name}' for column_name in self.mfps.columns]
         mfps_descriptors[self.smiles_name] = dataframe[self.smiles_name]
         self.mfps = mfps_descriptors
         self.mfps.to_csv(self.mfps_tsv, sep='\t', index=False)

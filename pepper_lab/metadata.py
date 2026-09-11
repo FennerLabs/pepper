@@ -3,7 +3,6 @@ import re
 import html
 from pepper_lab.util import Util
 
-
 class Metadata:
     """
     This class handles additional information from enviPath scenarios
@@ -55,14 +54,14 @@ class Metadata:
 
     @staticmethod
     def initiate_soil_dictionary():
-        D = {'compound_id': [], 'compound_name': [], 'smiles': [],  # compound
+        D = {'compound_id': [], 'compound_name': [], 'pathway_name': [], 'node_depth': [], 'smiles': [], 'minor_major': [], # compound
              'scenario_id': [], 'study_name': [], 'study_description': [], # study/scenario
              'halflife_raw': [], 'halflife_unit': [], 'halflife_model': [], 'halflife_comment': [], # DT50
              'spike_compound': [],
              # additional information
              'acidity': [], 'acidity_unit': [],
              'temperature': [], 'temperature_unit': [],
-             'CEC': [],
+             'CEC': [], 'CEC_unit': [],
              'OC': [],
              'biomass_start': [], 'biomass_end': [], 'biomass': [],
              'wst_value': [],
@@ -74,7 +73,7 @@ class Metadata:
     @staticmethod
     def initiate_sludge_dictionary():
         D = {
-            "compound_id": [], "compound_name": [], "smiles": [], # compound
+            "compound_id": [], "compound_name": [], "pathway_name": [], 'node_depth': [], "smiles": [], # compound
             "scenario_id": [], 'study_name': [], 'study_description': [], # study/scenario
             "halflife_raw": [], "halflife_unit": [], "halflife_model_TF": [], "halflife_comment": [], "halflife_model": [], # DT50
             "rateconstant": [], "rateconstant_unit": [], "rateconstant_comment": [],  # k
@@ -103,53 +102,54 @@ class Metadata:
 
     @staticmethod # mention the relevant data-types
     def initiate_sediment_dictionary():
-        D = {'compound_id': [], 'compound_name': [], 'smiles': [], # compound information
-             'scenario_id': [], 'study_name': [], 'study_description': [], # study description
-             # DT50
-             'DT50_water': [], 'DT50_sediment': [], 'DT50_total_system': [],
-             'DT50_water_comment': [], 'DT50_sediment_comment': [], 'DT50_total_system_comment': [],
-             'halflife_model': [], 'halflife_comment': [], 'halflife_fit': [],
-             'spike_compound': [],
-             # additional information
-             'acidity_water': [], 'acidity_sediment': [], 'acidity_method': [],
-             'bulk_density': [], 'bulk_density_unit': [],
-             'column_height_water': [], 'column_height_sediment': [],
-             'oxygen_content_water_start': [], 'oxygen_content_water_end': [],
-             'oxygen_content_water': [],  # avg oxygen water content in water
-             'oxygen_content_water_unit': [],
-             'oxygen_content_sediment_start': [], 'oxygen_content_sediment_end': [],
-             'oxygen_content_sediment': [],  # no oxygen content sediment value in current dataset
-             'oxygen_content_sediment_unit': [],
-             'CEC': [],
-             'OC_1': [], 'OC_2': [],  # range of Organic Carbon (OC) in sediment
-             'OC': [],  # OC avg (average of OC_1 and OC_2), as some erroneous values on website
-             'OC_type': [],
-             'OM_1': [], 'OM_2': [],  # range of Organic Matter (OM) in sediment
-             'OM': [],  # OM avg (average of OM_1 and OM_2)
-             'TOC_1': [], 'TOC_2': [],  # range of Total Organic carbon (TOC) in water layer
-             'TOC': [],  # TOC avg (average of TOC_1 and TOC_2)
-             'TOC_unit': [],
-             'DOC_1': [], 'DOC_2': [],  # range of Dissolved Organic carbon (DOC) in water layer
-             'DOC': [],  # DOC avg (average of DOC_1 and DOC_2)
-             'DOC_unit': [],
-             'redox_water_start': [], 'redox_water_end': [],  # In water, redox potential start and end, respectively
-             # In sediment, redox potential start and end, respectively. Only few values in the current dataset
-             'redox_sediment_start': [], 'redox_sediment_end': [],
-             'biomass_cells_count_water': [],
-             'biomass_cells_count_water_unit': [],
-             'biomass_cells_count_sediment': [],
-             'biomass_cells_count_sediment_unit': [],
-             'biomass_sediment_start': [], 'biomass_sediment_end': [],  # range of biomass at start and end in sediment
-             'biomass': [],  # avg biomass (average of biomass_sediment_start and biomass_sediment_end)
-             'biomass_sediment_unit': [],
-             'temperature': [], 'temperature_unit':[],
-             'sample_location': [],
-             'sediment_porosity': [],
-             'initial_sediment_mass_dry': [], 'initial_sediment_mass_wet': [],
-             'sediment_condition': [],
-             'initial_volume_water': [],
-             'soil_texture': [], 'sand': [], 'silt': [], 'clay': []}
-        return D
+            D = {'compound_id': [], 'compound_name': [], 'pathway_name': [], 'node_depth': [], 'smiles': [], 'scenario_id': [],
+                'study_name': [], 'major_minor': [],
+                'DT50_water': [], 'DT50_sediment': [], 'DT50_total_system': [],
+                'DT50_water_comment': [], 'DT50_sediment_comment': [], 'DT50_total_system_comment': [],
+                'halflife_model': [], 'halflife_comment': [], 'halflife_fit': [], 'halflife_source':[],
+                'spike_compound': [],
+                'acidity_water': [], 'acidity_sediment': [], 'acidity_method': [],
+                'bulk_density': [], 'bulk_density_unit': [],
+                'column_height_water': [], 'column_height_sediment': [],
+                'oxygen_content_water_start': [], 'oxygen_content_water_end': [],
+                'oxygen_content_water': [],  # avg oxygen water content in water
+                'oxygen_content_water_unit': [],
+                'oxygen_content_sediment_start': [], 'oxygen_content_sediment_end': [],
+                'oxygen_content_sediment': [],  # no oxygen content sediment value in current dataset
+                'oxygen_content_sediment_unit': [],
+                'CEC': [],
+                'study_description': [],
+                'OC_1': [], 'OC_2': [],  # range of Organic Carbon (OC) in sediment
+                'OC': [],  # OC avg (average of OC_1 and OC_2), as some erroneous values on website
+                'OC_type': [],
+                'OM_1': [], 'OM_2': [],  # range of Organic Matter (OM) in sediment
+                'OM': [],  # OM avg (average of OM_1 and OM_2)
+                'TOC_1': [], 'TOC_2': [],  # range of Total Organic carbon (TOC) in water layer
+                'TOC': [],  # TOC avg (average of TOC_1 and TOC_2)
+                'TOC_unit': [],
+                'DOC_1': [], 'DOC_2': [],  # range of Dissolved Organic carbon (DOC) in water layer
+                'DOC': [],  # DOC avg (average of DOC_1 and DOC_2)
+                'DOC_unit': [],
+                'redox_water_start': [], 'redox_water_end': [],  # In water, redox potential start and end, respectively
+                # In sediment, redox potential start and end, respectively. Only few values in the current dataset
+                'redox_sediment_start': [], 'redox_sediment_end': [],
+                'biomass_cells_count_water': [],
+                'biomass_cells_count_water_unit': [],
+                'biomass_cells_count_sediment': [],
+                'biomass_cells_count_sediment_unit': [],
+                'biomass_sediment_mg_start': [], 'biomass_sediment_mg_end': [],  # range of biomass at start and end in sediment
+                'biomass': [],  # avg biomass (average of biomass_sediment_start and biomass_sediment_end)
+                'biomass_sediment_unit': [],
+                'temperature': [], 'temperature_unit': [],
+                'sample_location': [],
+                'sediment_porosity': [],
+                'initial_sediment_mass': [],
+                'initial_sediment_mass_wet_or_dry': [],
+                'sediment_condition': [],
+                'initial_volume_water': [], 'initial_volume_water_unit': [],
+                'soil_texture': [], 'sand': [], 'silt': [], 'clay': []}
+            return D
+
 
 
     def fetch_mean_value(self, name, key1, key2):
@@ -358,221 +358,555 @@ class Metadata:
         except:
             return np.NaN
 
-    def get_scenario_information(self, D, scenario, compound, data_type, spike_smiles, description):
+    def get_scenario_information(self, D, scenario, compound, data_type, spike_smiles, description, path_name, depth):
         if data_type == 'soil':
-            D = self.get_soil_scenario_information(D, scenario, compound, spike_smiles, description)
+            D = self.get_soil_scenario_information(D, scenario, compound, spike_smiles, description, path_name, depth)
         elif data_type == 'sediment':
-            D = self.get_sediment_scenario_information(D, scenario, compound, spike_smiles, description)
+            D = self.get_sediment_scenario_information(D, scenario, compound, spike_smiles, description, path_name, depth)
         elif data_type == 'sludge':
-            D = self.get_sludge_scenario_information(D, scenario, compound, description)
+            D = self.get_sludge_scenario_information(D, scenario, compound, description, path_name, depth)
         else:
             raise NotImplementedError
         return D
 
-    def get_sludge_scenario_information(self, D, scenario, compound, description):
+    def get_sludge_scenario_information(self, D, scenario, compound, description, path_name, depth):
         if D == {}:
             D = self.initiate_sludge_dictionary()
         # Compound informatin
         D['compound_id'].append(compound.get_id())
         D['compound_name'].append(compound.get_name())
+
         D['smiles'].append(compound.get_smiles())
         # Scenario/study information
         D['scenario_id'].append(scenario.get_id())
         D['study_name'].append(scenario.get_name().split(' - ')[0])
+        D['pathway_name'].append(path_name)
+        D['node_depth'].append(depth)
+
         D['study_description'].append(description)
-        D['acidity'].append(self.fetch_mean_value("acidity", 'lowPh', 'highPh'))
-        D['acidity_unit'].append(self.fetch_normal_value("acidity", "unit", str))
-        D['addition_of_nutrients'].append(self.fetch_normal_value("additionofnutrients", "additionofnutrients", str))
-        D['biological_treatment_technology'].append(self.fetch_normal_value("biologicaltreatmenttechnology", "biologicaltreatmenttechnology", str))
-        D['bioreactor_type'].append(self.fetch_normal_value("bioreactor", "bioreactortype", str))
-        D['bioreactor_value'].append(self.fetch_normal_value("bioreactor", "bioreactorsize", float))
-        D['bioreactor_value_unit'].append(self.fetch_normal_value("bioreactor", "unit", str))
-        D['halflife_raw'].append(self.fetch_mean_value("halflife", "lower", "upper"))
-        D['halflife_unit'].append(self.fetch_normal_value("halflife", "unit", str))
-        D['halflife_model_TF'].append(self.fetch_normal_value("halflife", "model", str))
-        D['halflife_comment'].append(self.fetch_normal_value("halflife", "comment", str))
-        D['inoculum_source'].append(self.fetch_normal_value("inoculumsource", "inoculumsource", str))
-        D['location'].append(self.fetch_normal_value("location", "location", str))
-        D['nitrogen_content_type'].append(self.fetch_normal_value("nitrogencontent", "nitrogencontentType", str))
-        D['nitrogen_content_influent'].append(self.fetch_normal_value("nitrogencontent", "nitrogencontentInfluent", str))
-        D['original_sludge_amount'].append(self.fetch_normal_value('originalsludgeamount', 'originalsludgeamount', float))
-        D['original_sludge_amount_unit'].append(self.fetch_normal_value('originalsludgeamount', 'unit', str))
-        D['oxygen_demand_type'].append(self.fetch_normal_value('oxygendemand', 'oxygendemandType', str))
-        D['oxygen_demand_value'].append(self.fetch_normal_value('oxygendemand', 'oxygendemandInfluent', float))
-        D['oxygen_uptake_rate_unit'].append(self.fetch_normal_value("oxygenuptakerate", "unit", str))
-        D['oxygen_uptake_rate'].append(self.fetch_mean_value('oxygenuptakerate', 'oxygenuptakerateStart', 'oxygenuptakerateEnd'))
-        D['phosphorus_content'].append(self.fetch_normal_value("phosphoruscontent", "phosphoruscontentInfluent", float))
-        D['purpose_of_wwtp'].append(self.fetch_normal_value("purposeofwwtp", "purposeofwwtp", str))
-        D['rateconstant'].append(self.fetch_mean_value("rateconstant", "rateconstantlower", "rateconstantupper"))
-        D['rateconstant_unit'].append(self.fetch_normal_value("rateconstant", "unit", str))
-        D['halflife_model'].append(self.fetch_normal_value("rateconstant", 'rateconstantorder', str))
-        D['rateconstant_comment'].append(self.fetch_normal_value("rateconstant", 'rateconstantcomment', str))
-        D['redox'].append(self.fetch_normal_value("redox", "redoxType", str))
-        D['sludge_retention_time_type'].append(self.fetch_normal_value("sludgeretentiontime", "sludgeretentiontimeType", str))
-        D['sludge_retention_time'].append(self.fetch_normal_value("sludgeretentiontime", "sludgeretentiontime", float))
-        D['sludge_retention_time_unit'].append(self.fetch_normal_value("sludgeretentiontime", "unit", str))
-        D['source_of_liquid_matrix'].append(self.fetch_normal_value("sourceofliquidmatrix", "sourceofliquidmatrix", str))
-        D['temperature'].append(self.fetch_mean_value("temperature", "temperatureMin", "temperatureMax"))
-        D['temperature_unit'].append(self.fetch_normal_value("temperature", "unit", str))
-        D['total_suspended_solids_concentration_start'].append(self.fetch_normal_value("tts", "ttsStart", float))
-        D['total_suspended_solids_concentration_end'].append(self.fetch_normal_value("tts", "ttsEnd", float))
-        D['total_suspended_solids_concentration_unit'].append(self.fetch_normal_value("tts", "unit", str))
-        D['type_of_addition'].append(self.fetch_normal_value("typeofaddition", "typeofaddition", str))
-        D['type_of_aeration'].append(self.fetch_normal_value("typeofaeration", "typeofaeration", str))
+        if "acidity" in self.info:
+            D['acidity'].append(self.fetch_mean_value("acidity", 'lowPh', 'highPh'))
+            D['acidity_unit'].append(self.info['acidity'].get_unit())
+        else:
+            D['acidity'].append(np.NaN)
+            D['acidity_unit'].append(np.NaN)
+        if "additionofnutrients" in self.info:
+            D['addition_of_nutrients'].append(self.info['additionofnutrients'].get_additionofnutrients())
+        else:
+            D['addition_of_nutrients'].append(np.nan)
+        if "biologicaltreatmenttechnology" in self.info:
+            D['biological_treatment_technology'].append(self.info['biologicaltreatmenttechnology'].get_biologicaltreatmenttechnology())
+        else:
+            D['biological_treatment_technology'].append(np.nan)
+
+        if "bioreactor" in self.info:
+            D['bioreactor_type'].append(self.info['bioreactor'].get_bioreactortype())
+            D['bioreactor_value'].append(self.info['bioreactor'].get_bioreactorsize())
+            D['bioreactor_value_unit'].append(self.info['bioreactor'].get_unit())
+        else:
+            D['bioreactor_type'].append(np.nan)
+            D['bioreactor_value'].append(np.nan)
+            D['bioreactor_value_unit'].append(np.nan)
+        if "halflife" in self.info:
+            D['halflife_raw'].append(np.nanmean([self.info["halflife"].get_lower(), self.info["halflife"].get_upper()]))
+            D['halflife_unit'].append(self.info['halflife'].get_unit())
+            D['halflife_comment'].append(self.info['halflife'].get_comment())
+            if self.info['halflife'].get_firstOrder():
+                D['halflife_model_TF'].append('SFO')
+            else:
+                D['halflife_model_TF'].append('nan')
+        else:
+            D['halflife_raw'].append(np.nan)
+            D['halflife_unit'].append(np.nan)
+            D['halflife_comment'].append(np.nan)
+            D['halflife_model_TF'].append(np.nan)
+        if "inoculumsource" in self.info:
+            D['inoculum_source'].append(self.info['inoculumsource'].get_inoculumsource())
+        else:
+            D['inoculum_source'].append(np.nan)
+        if "location" in self.info:
+            D['location'].append(self.info['location'].get_location())
+        else:
+            D['location'].append(np.nan)
+        if "nitrogencontent" in self.info:
+            D['nitrogen_content_influent'].append(self.info['nitrogencontent'].get_nitrogencontentInfluent())
+            D['nitrogen_content_type'].append(self.info['nitrogencontent'].get_nitrogencontentType())
+        else:
+            D['nitrogen_content_influent'].append(np.nan)
+            D['nitrogen_content_type'].append(np.nan)
+        if "originalsludgeamount" in self.info:
+            D['original_sludge_amount'].append(self.info['originalsludgeamount'].get_originalsludgeamount())
+            D['original_sludge_amount_unit'].append(self.info['originalsludgeamount'].get_unit())
+        else:
+            D['original_sludge_amount'].append(np.nan)
+            D['original_sludge_amount_unit'].append(np.nan)
+        if "oxygendemand" in self.info:
+            D['oxygen_demand_type'].append(self.info['oxygendemand'].get_oxygendemandType())
+            D['oxygen_demand_value'].append(self.info['oxygendemand'].get_oxygendemandInfluent())
+        else:
+            D['oxygen_demand_type'].append(np.nan)
+            D['oxygen_demand_value'].append(np.nan)
+        if "oxygenuptakerate" in self.info:
+            start = self.info['oxygenuptakerate'].get_oxygenuptakerateStart()
+            end = self.info['oxygenuptakerate'].get_oxygenuptakerateEnd()
+            D['oxygen_uptake_rate_unit'].append(self.info['oxygenuptakerate'].get_unit())
+            if start and end:
+
+                D['oxygen_uptake_rate'].append(np.nanmean([float(start), float(end)]))
+            elif start and not end:
+                D['oxygen_uptake_rate'].append(float(self.info['oxygenuptakerate'].get_oxygenuptakerateStart()))
+            else:
+                D['oxygen_uptake_rate'].append(float(self.info['oxygenuptakerate'].get_oxygenuptakerateEnd()))
+        else:
+            D['oxygen_uptake_rate_unit'].append(np.nan)
+            D['oxygen_uptake_rate'].append(np.nan)
+        if "phosphoruscontent" in self.info:
+            D['phosphorus_content'].append(self.info['phosphoruscontent'].get_phosphoruscontentInfluent())
+        else:
+            D['phosphorus_content'].append(np.nan)
+        if "purposeofwwtp" in self.info:
+            D['purpose_of_wwtp'].append(self.info['purposeofwwtp'].get_purposeofwwtp())
+        else:
+            D['purpose_of_wwtp'].append(np.nan)
+        if "rateconstant" in self.info:
+            D['rateconstant'].append(np.nanmean([self.info['rateconstant'].get_rateconstantlower(), self.info['rateconstant'].get_rateconstantupper()]))
+            D['rateconstant_unit'].append(self.info['rateconstant'].get_unit())
+            D['halflife_model'].append(self.info['rateconstant'].get_rateconstantorder())
+            D['rateconstant_comment'].append(self.info['rateconstant'].get_rateconstantcomment())
+        else:
+            D['rateconstant'].append(np.nan)
+            D['rateconstant_unit'].append(np.nan)
+            D['halflife_model'].append(np.nan)
+            D['rateconstant_comment'].append(np.nan)
+        if "redox" in self.info:
+            D['redox'].append(self.info['redox'].get_redoxType())
+        else:
+            D['redox'].append(np.nan)
+        if "sludgeretentiontime" in self.info:
+            D['sludge_retention_time'].append(self.info['sludgeretentiontime'].get_sludgeretentiontime())
+            D["sludge_retention_time_unit"].append(self.info['sludgeretentiontime'].get_unit())
+            D['sludge_retention_time_type'].append(self.info['sludgeretentiontime'].get_sludgeretentiontimeType())
+        else:
+            D['sludge_retention_time'].append(np.nan)
+            D['sludge_retention_time_unit'].append(np.nan)
+            D['sludge_retention_time_type'].append(np.nan)
+        if "sourceofliquidmatrix" in self.info:
+            D['source_of_liquid_matrix'].append(self.info['sourceofliquidmatrix'].get_sourceofliquidmatrix())
+        else:
+            D['source_of_liquid_matrix'].append(np.nan)
+        if "temperature" in self.info:
+            D['temperature'].append(np.nanmean([float(self.info['temperature'].get_temperatureMin()), float(self.info['temperature'].get_temperatureMax())]))
+            D['temperature_unit'].append(self.info['temperature'].get_unit())
+        else:
+            D['temperature'].append(np.nan)
+            D['temperature_unit'].append(np.nan)
+        if "tts" in self.info:
+            D['total_suspended_solids_concentration_start'].append(self.info['tts'].get_ttsStart())
+            D['total_suspended_solids_concentration_end'].append(self.info['tts'].get_ttsEnd())
+            D['total_suspended_solids_concentration_unit'].append(self.info['tts'].get_unit())
+        else:
+            D['total_suspended_solids_concentration_start'].append(np.nan)
+            D['total_suspended_solids_concentration_end'].append(np.nan)
+            D['total_suspended_solids_concentration_unit'].append(np.nan)
+        if "typeofaddition" in self.info:
+            D['type_of_addition'].append(self.info['typeofaddition'].get_typeofaddition())
+        else:
+            D['type_of_addition'].append(np.nan)
+        if "typeofaeration" in self.info:
+            D['type_of_aeration'].append(self.info['typeofaeration'].get_typeofaeration())
+        else:
+            D['type_of_aeration'].append(np.nan)
         return D
 
-    def get_soil_scenario_information(self, D, scenario, compound, spike_smiles, description):
-        # compound info
+    def get_soil_scenario_information(self, D, scenario, compound, spike_smiles, description, path_name,depth):
         if D == {}:
             D = self.initiate_soil_dictionary()
+        # compound info
+        D['spike_compound'].append(spike_smiles)
         D['compound_id'].append(compound.get_id())
         D['compound_name'].append(compound.get_name())
         D['smiles'].append(compound.get_smiles())
-        D['spike_compound'].append(spike_smiles)
+        if 'minormajor' in self.info:
+            D['minor_major'].append(self.info['minormajor'].get_radiomin())
+        else:
+            D['minor_major'].append(np.nan)
+        # D['spike_compound'].append(spike_smiles)
         # study
         D['scenario_id'].append(scenario.get_id())
         D['study_name'].append(scenario.get_name().split(' - ')[0])
         D['study_description'].append(description)
-
+        D['pathway_name'].append(path_name)
+        D['node_depth'].append(depth)
         # add halflife details
-        D['halflife_raw'].append(self.fetch_mean_value("halflife", "lower", "upper")) # renamed from 'reported_DT50'
-        D['halflife_unit'].append(self.fetch_normal_value("halflife", "unit", str)) # added
-        D['halflife_model'].append(self.fetch_normal_value("halflife", "model", str))
-        D['halflife_comment'].append(self.fetch_normal_value("halflife", "comment", str))
-
+        D['halflife_raw'].append(self.fetch_mean_value("halflife", "lower", "upper")) # self.info['halflife']
+        if 'halflife' in self.info:
+            D['halflife_unit'].append(self.info['halflife'].get_unit())
+            if self.info['halflife'].get_firstOrder():
+                D['halflife_model'].append('SFO')
+            else:
+                D['halflife_model'].append('nan')
+            D['halflife_comment'].append(self.info['halflife'].get_comment())
+        
+        else:
+            D['halflife_unit'].append(np.nan)
+            D['halflife_model'].append(np.nan)
+            D['halflife_comment'].append(np.nan)
         # fetch additional information
-        D['acidity'].append(self.fetch_mean_value("acidity", 'lowPh', 'highPh'))
-        D['acidity_unit'].append(self.fetch_normal_value("acidity", "unit", str)) # added
-        D['temperature'].append(self.fetch_mean_value("temperature", "temperatureMin", "temperatureMax"))
-        D['temperature_unit'].append(self.fetch_normal_value("temperature", "unit", str))
+        if "acidity" in self.info:
+            D['acidity'].append(self.fetch_mean_value("acidity", 'lowPh', 'highPh'))
+            D['acidity_unit'].append(self.info['acidity'].get_unit())
+        else:
+            D['acidity'].append(np.NaN)
+            D['acidity_unit'].append(np.NaN)
 
-        D['CEC'].append(self.fetch_cec())  # cation exchange capacity
-        D['OC'].append(self.fetch_organic_content())  # organic content as organic carbon (oc)
-        start, end = self.fetch_biomass()
-        D['biomass_start'].append(start)
-        D['biomass_end'].append(end)
-        D['biomass'].append(np.round(np.average([start, end]), 2))
-        wst_value, wst_type = self.fetch_wst()  # water storage capacity,
-        D['wst_value'].append(wst_value)
-        D['wst_type'].append(wst_type)
-        hum, hum_cond = self.fetch_humidity()
-        D['humidity'].append(hum)
-        D['humidity_conditions'].append(hum_cond)
-        D['soil_texture'].append(self.fetch_soiltexture1())
-        _sand, _silt, _clay = self.fetch_soiltexture2()
-        D['sand'].append(_sand)
-        D['silt'].append(_silt)
-        D['clay'].append(_clay)
+        if "temperature" in self.info:
+            D['temperature'].append(self.fetch_mean_value("temperature", "temperatureMin", "temperatureMax"))
+            D['temperature_unit'].append(self.info['temperature'].get_unit())
+        else:
+            D['temperature'].append(np.NaN)
+            D['temperature_unit'].append(np.NaN)
+
+        if "cec" in self.info:
+            D['CEC'].append(self.info['cec'].get_cecdata())  # cation exchange capacity
+            D['CEC_unit'].append(self.info['cec'].get_unit())
+
+        else:
+            D['CEC'].append(np.NaN)
+            D['CEC_unit'].append(np.NaN)
+        if "organiccontent" in self.info:
+            D['OC'].append(self.fetch_mean_value('organiccontent','OC_content_low', 'OC_content_high'))  
+        
+        else:
+            D['OC'].append(np.NaN)
+        if "biomass" in self.info:
+            D['biomass_start'].append(self.info['biomass'].get_biomassStart())
+            D['biomass_end'].append(self.info['biomass'].get_biomassEnd())
+            D['biomass'].append(np.round(np.average([D['biomass_start'], D['biomass_end']]), 2))
+        else:
+            D['biomass_start'].append(np.NaN)
+            D['biomass_end'].append(np.NaN)
+            D['biomass'].append(np.NaN)
+        if "waterstoragecapacity" in self.info:
+            D['wst_value'].append(self.info['waterstoragecapacity'].get_maximumWaterstoragecapacity())
+            D['wst_type'].append(self.info['waterstoragecapacity'].get_wstConditions())
+        else:
+            D['wst_value'].append(np.NaN)
+            D['wst_type'].append(np.NaN)
+        if "humidity" in self.info:
+            D['humidity'].append(self.info['humidity'].get_expHumid())
+            D['humidity_conditions'].append(self.info['humidity'].get_humConditions())
+        else:
+            D['humidity'].append(np.NaN)
+            D['humidity_conditions'].append(np.NaN)
+        if "soiltexture1" in self.info:
+            D['soil_texture'].append(self.info['soiltexture1'].get_soilTextureType())
+        else:
+            D['soil_texture'].append(np.NaN)
+        if "soiltexture2" in self.info:
+            D['sand'].append(self.info['soiltexture2'].get_sand())
+            D['silt'].append(self.info['soiltexture2'].get_silt())
+            D['clay'].append(self.info['soiltexture2'].get_clay())
+        else:
+            D['sand'].append(np.NaN)
+            D['silt'].append(np.NaN)
+            D['clay'].append(np.NaN)
         return D
 
-    def get_sediment_scenario_information(self, D, scenario, compound, spike_smiles, description):
+    def get_sediment_scenario_information(self, D, scenario, compound, spike_smiles, description, path_name,depth):
         # compound info
         if D == {}:
             D = self.initiate_sediment_dictionary()
         D['compound_id'].append(compound.get_id())
         D['compound_name'].append(compound.get_name())
         D['smiles'].append(compound.get_smiles())
-        D['scenario_id'].append(scenario.get_id())
-        D['study_description'].append(description)
-        # fetch halflife details - total system, water, sediment, model_type, comment, fit
-        dt50_total, comment1 = self.fetch_halflife_total_system_value()
-        D['DT50_total_system'].append(self.range_to_average(dt50_total))
-        D['DT50_total_system_comment'].append(comment1)
-        dt50_water, comment2 = self.fetch_halflife_water_value()
-        D['DT50_water'].append(self.range_to_average(dt50_water))
-        D['DT50_water_comment'].append(comment2)
-        dt50_sediment, comment3 = self.fetch_halflife_sediment_value()
-        D['DT50_sediment'].append(self.range_to_average(dt50_sediment))
-        D['DT50_sediment_comment'].append(comment3)
-        D['halflife_model'].append(self.fetch_halflife_ws_model())
-        D['halflife_comment'].append(self.fetch_halflife_ws_comment())
-        D['halflife_fit'].append(self.fetch_halflife_ws_fit())
-        # Fetch other data points
-        D['study_name'].append(scenario.get_name().split(' - ')[0])
         D['spike_compound'].append(spike_smiles)
-        #  fetch pH values for surface water and sediment, and the method used for measuring pH in sediment
-        D['temperature'].append(self.fetch_mean_value("temperature", "temperatureMin", "temperatureMax"))
-        D['temperature_unit'].append(self.fetch_normal_value("temperature", "unit", str))
-        D['acidity_water'].append(self.fetch_acidity_water_phase())  # pH surface water
-        D['acidity_sediment'].append(self.fetch_acidity_sediment_phase())  # pH sediment
-        D['acidity_method'].append(self.fetch_acidity_method_sediment())  # pH method in sediment
-        D['bulk_density'].append(self.fetch_bulk_density())  # bulk density
-        D['bulk_density_unit'].append(self.fetch_bulk_density_unit())  # unit of bulk density
-        D['CEC'].append(self.fetch_cec())  # cation exchange capacity
-        # column height for water and sediment phases, respectively
-        column_height_w, column_height_s = self.fetch_column_height()
-        D['column_height_water'].append(column_height_w)
-        D['column_height_sediment'].append(column_height_s)
-        # initial sediment mass (dry/wet)
-        initial_sediment_mass_d, initial_sediment_mass_w, sediment_condition = self.fetch_initial_sediment_mass()
-        D['initial_sediment_mass_dry'].append(initial_sediment_mass_d)
-        D['initial_sediment_mass_wet'].append(initial_sediment_mass_w)
-        D['sediment_condition'].append(sediment_condition)  # dry or wet
-        # initial volume of water
-        D['initial_volume_water'].append(self.fetch_initial_volume_water())
+        D['scenario_id'].append(scenario.get_id())
+        D['pathway_name'].append(path_name)
+        D['node_depth'].append(depth)
         # System information: High OC or Low OC system
-        D['OC_type'].append(self.oc_type())  # high oc / low oc vales
-        # Organic carbon in water layer - Total Organic Carbon [TOC] values
-        toc1, toc2, toc_unit = self.fetch_total_organic_carbon()
-        D['TOC_1'].append(toc1)
-        D['TOC_2'].append(toc2)
-        D['TOC'].append(np.round(np.average([toc1, toc2]), 2))
-        D['TOC_unit'].append(toc_unit)
-        # Organic carbon in water layer - Dissolved Organic Carbon [DOC] values
-        doc1, doc2, doc_unit = self.fetch_dissolved_organic_carbon()
-        D['DOC_1'].append(doc1)
-        D['DOC_2'].append(doc2)
-        D['DOC'].append(np.round(np.average([doc1, doc2]), 2))
-        D['DOC_unit'].append(doc_unit)
+        D['study_description'].append(description)
+        D['OC_type'].append("see description")
+        # Fetch other data points
+
+        D['study_name'].append(scenario.get_name().split(' - ')[0])
+        if 'minormajor' in self.info:
+            D['major_minor'].append(self.info['minormajor'].get_radiomin())
+        else:
+            D['major_minor'].append(np.nan)
+        # fetch halflife details - total system, water, sediment, model_type, comment, fit
+        if "halflife_ws" in self.info:
+            D['DT50_total_system'].append(np.nanmean([self.info['halflife_ws'].get_total_high(), self.info['halflife_ws'].get_total_low()]))
+            
+            water_low = self.info['halflife_ws'].get_water_low()
+            water_high = self.info['halflife_ws'].get_water_high()
+            sediment_low = self.info['halflife_ws'].get_sediment_low()
+            sediment_high = self.info['halflife_ws'].get_sediment_high()
+            if water_low and water_high:
+                D['DT50_water'].append(np.nanmean([water_low, water_high]))
+            else:
+                D['DT50_water'].append(np.nan)
+            if sediment_low and sediment_high:
+                D['DT50_sediment'].append(np.nanmean([sediment_low, sediment_high]))
+            else:
+                D['DT50_sediment'].append(np.nan)
+            
+            D['DT50_water_comment'].append(self.info['halflife_ws'].get_comment_ws())
+            D['DT50_total_system_comment'].append(self.info['halflife_ws'].get_comment_ws())
+            D['DT50_sediment_comment'].append(self.info['halflife_ws'].get_comment_ws())
+            D['halflife_model'].append(self.info['halflife_ws'].get_model_ws())
+            D['halflife_comment'].append(self.info['halflife_ws'].get_comment_ws())
+            D['halflife_fit'].append(self.info['halflife_ws'].get_fit_ws())
+            D['halflife_source'].append(self.info['halflife_ws'].get_source_ws())
+        else:
+            D['DT50_total_system'].append(np.nan)
+            D['DT50_water'].append(np.nan)
+            D['DT50_water_comment'].append(np.nan)
+            D['DT50_total_system_comment'].append(np.nan)
+            D['DT50_sediment_comment'].append(np.nan)
+            D['DT50_sediment'].append(np.nan)
+            D['halflife_model'].append(np.nan)
+            D['halflife_comment'].append(np.nan)
+            D['halflife_fit'].append(np.nan)
+            D['halflife_source'].append(np.nan)
+        #  fetch pH values for surface water and sediment, and the method used for measuring pH in sediment
+        if "temperature" in self.info:
+            D['temperature'].append(np.nanmean([float(self.info['temperature'].get_temperatureMin()), float(self.info['temperature'].get_temperatureMax())]))
+            D['temperature_unit'].append(self.info['temperature'].get_unit())
+        else:
+            D['temperature'].append(np.NaN)
+            D['temperature_unit'].append(np.NaN)
+        if "acidity_ws" in self.info:
+            if self.info['acidity_ws'].get_pH_water_low() or self.info['acidity_ws'].get_pH_water_high():
+                D['acidity_water'].append(np.nanmean([self.info['acidity_ws'].get_pH_water_low(), self.info['acidity_ws'].get_pH_water_high()])) # pH surface water low carbon
+            else:
+                D['acidity_water'].append(np.nan)
+            if self.info['acidity_ws'].get_pH_sediment_low() or self.info['acidity_ws'].get_pH_sediment_high():
+                D['acidity_sediment'].append(np.nanmean([self.info['acidity_ws'].get_pH_sediment_low(),self.info['acidity_ws'].get_pH_sediment_high()]))  # pH sediment
+            else:
+                D['acidity_sediment'].append(np.nan)
+            D['acidity_method'].append(self.info['acidity_ws'].get_acidityType())  # pH method in sediment
+        else:
+            D['acidity_water'].append(np.nan)
+            D['acidity_sediment'].append(np.nan)
+            D['acidity_method'].append(np.nan)
+        if "bulkdens" in self.info:
+            D['bulk_density'].append(self.info['bulkdens'].get_bulkdensity())
+            D['bulk_density_unit'].append(self.info['bulkdens'].get_unit())
+        else:
+            D['bulk_density'].append(np.nan)
+            D['bulk_density_unit'].append(np.nan)
+        if 'cec' in self.info:
+            D['CEC'].append(self.info['cec'].get_cecdata())
+        else:
+            D['CEC'].append(np.nan)
+        # column height for water and sediment phases, respectively
+        if "columnheight" in self.info:
+            D['column_height_water'].append(self.info['columnheight'].get_column_height_water())
+            D['column_height_sediment'].append(self.info['columnheight'].get_column_height_sediment())
+        else:
+            D['column_height_water'].append(np.nan)
+            D['column_height_sediment'].append(np.nan)
+        # initial sediment mass (dry/wet)
+        if 'initialmasssediment' in self.info:
+            D['initial_sediment_mass'].append(self.info['initialmasssediment'].get_initial_mass_sediment())
+            D['initial_sediment_mass_wet_or_dry'].append(self.info['initialmasssediment'].get_wet_or_dry())
+        else:
+            D['initial_sediment_mass'].append(np.nan)
+            D['initial_sediment_mass_wet_or_dry'].append(np.nan)
+        # initial volume of water
+        if 'initialvolumewater' in self.info:
+            D['initial_volume_water'].append(self.info['initialvolumewater'].get_initialvolumewater())
+            D['initial_volume_water_unit'].append(self.info['initialvolumewater'].get_unit())
+        else:
+            D['initial_volume_water'].append(np.nan)
+            D['initial_volume_water_unit'].append(np.nan)
+        # Organic carbon in water layer - Total Organic Carbon [TOC] values % and Dissolved Organic Carbon [DOC] values 
+        if 'organiccarbonwater' in self.info:
+            toc1 = self.info['organiccarbonwater'].get_TOC_low()
+            toc2 = self.info['organiccarbonwater'].get_TOC_high()
+            doc1 = self.info['organiccarbonwater'].get_DOC_low()
+            doc2 = self.info['organiccarbonwater'].get_DOC_high()
+            if toc1 or toc2:
+                toc1 = toc1.replace('-', '.').replace('<', '')
+                toc2 = toc2.replace('-', '.').replace('<', '')
+                D['TOC_1'].append(self.info['organiccarbonwater'].get_TOC_low())
+                D['TOC_2'].append(self.info['organiccarbonwater'].get_TOC_high())
+                D['TOC'].append(np.nanmean([float(toc1), float(toc2)]))
+                D['TOC_unit'].append(self.info['organiccarbonwater'].get_unit())
+            else:
+                D['TOC_1'].append(np.nan)
+                D['TOC_2'].append(np.nan)
+                D['TOC'].append(np.nan)
+                D['TOC_unit'].append(np.nan)
+            if doc1 or doc2:
+                doc1 = doc1.replace('-', '.').replace('<', '')
+                doc2 = doc2.replace('-', '.').replace('<', '')
+                D['DOC_1'].append(self.info['organiccarbonwater'].get_DOC_low())
+                D['DOC_2'].append(self.info['organiccarbonwater'].get_DOC_high())
+                D['DOC'].append(np.nanmean([float(doc1), float(doc2)]))
+                D['DOC_unit'].append(self.info['organiccarbonwater'].get_unit())
+            else:
+                D['DOC_1'].append(np.nan)
+                D['DOC_2'].append(np.nan)
+                D['DOC'].append(np.nan)
+                D['DOC_unit'].append(np.nan)
+      
+        else:
+            D['TOC_1'].append(np.nan)
+            D['TOC_2'].append(np.nan)
+            D['TOC'].append(np.nan)
+            D['TOC_unit'].append(np.nan)
+            D['DOC_1'].append(np.nan)
+            D['DOC_2'].append(np.nan)
+            D['DOC'].append(np.nan)
+            D['DOC_unit'].append(np.nan)
         # Organic content in sediment organic carbon [OC] and organic matter [OM] values
-        oc1, oc2 = self.fetch_organic_carbon_sediment()
-        D['OC_1'].append(oc1)
-        D['OC_2'].append(oc2)
-        D['OC'].append(np.round(np.average([oc1, oc2]), 2))
-        om1, om2 = self.fetch_organic_matter_sediment()
-        D['OM_1'].append(om1)
-        D['OM_2'].append(om2)
-        D['OM'].append(np.round(np.average([om1, om2]), 2))
+        if "organiccontent" in self.info:
+            oc1 = self.info["organiccontent"].get_OC_content_low()
+            oc2 = self.info["organiccontent"].get_OC_content_high()
+            if oc1 or oc2:
+                oc1 = oc1.replace('<', '')
+                oc2 = oc2.replace('<', '')
+                D['OC_1'].append(self.info["organiccontent"].get_OC_content_low())
+                D['OC_2'].append(self.info["organiccontent"].get_OC_content_high())
+                D['OC'].append(np.nanmean([float(oc1), float(oc2)]))
+            else:
+                D['OC_1'].append(np.nan)
+                D['OC_2'].append(np.nan)
+                D['OC'].append(np.nan)
+            if self.info["organiccontent"].get_OM_content_low() or self.info["organiccontent"].get_OM_content_high():
+                
+                D['OM_1'].append(self.info["organiccontent"].get_OM_content_low())
+                D['OM_2'].append(self.info["organiccontent"].get_OM_content_high())
+                D['OM'].append(np.nanmean([float(self.info["organiccontent"].get_OM_content_low()), float(self.info["organiccontent"].get_OM_content_high())]))
+            else:
+                D['OM_1'].append(np.nan)
+                D['OM_2'].append(np.nan)
+                D['OM'].append(np.nan)
+        else:
+            D['OC_1'].append(np.nan)
+            D['OC_2'].append(np.nan)
+            D['OC'].append(np.nan)
+            D['OM_1'].append(np.nan)
+            D['OM_2'].append(np.nan)
+            D['OM'].append(np.nan)
         # Oxygen content in water layer
-        start_oxygen_water, end_oxygen_water, oxygen_water_unit = self.fetch_oxygen_content_water()
-        D['oxygen_content_water_start'].append(start_oxygen_water)
-        D['oxygen_content_water_end'].append(end_oxygen_water)
-        D['oxygen_content_water'].append(np.round(np.average([start_oxygen_water, end_oxygen_water]), 2))  # avg
-        D['oxygen_content_water_unit'].append(oxygen_water_unit)
-        # Oxygen content in sediment layer
-        oxygen_sediment_start, oxygen_sediment_end, oxygen_sediment_unit = self.fetch_oxygen_content_sediment()
-        D['oxygen_content_sediment_start'].append(oxygen_sediment_start)
-        D['oxygen_content_sediment_end'].append(oxygen_sediment_end)
-        D['oxygen_content_sediment'].append(np.round(np.average([oxygen_sediment_start, oxygen_sediment_end]), 2))
-        D['oxygen_content_sediment_unit'].append(oxygen_sediment_unit)
-        # Microbial biomass in water
-        cells_water_count, cells_water_count_unit = self.fetch_biomass_cells_count_water()
-        D['biomass_cells_count_water'].append(cells_water_count)
-        D['biomass_cells_count_water_unit'].append(cells_water_count_unit)
-        # Microbial biomass in sediment
-        cells_count_sediment, cells_count_sediment_unit = self.fetch_biomass_cells_count_sediment()
-        D['biomass_cells_count_sediment'].append(cells_count_sediment)
-        D['biomass_cells_count_sediment_unit'].append(cells_count_sediment_unit)
-        start_sediment, end_sediment, biomass_unit = self.fetch_biomass_sediment()
-        D['biomass_sediment_start'].append(start_sediment)
-        D['biomass_sediment_end'].append(end_sediment)
-        D['biomass'].append(np.round(np.average([start_sediment, end_sediment]), 2))
-        D['biomass_sediment_unit'].append(biomass_unit)
-        # Redox potentials
-        redox_w1, redox_w2 = self.fetch_redox_potential_water()  # Redox potential of water at start and end, respectively
-        D['redox_water_start'].append(redox_w1)
-        D['redox_water_end'].append(redox_w2)
-        redox_s1, redox_s2 = self.fetch_redox_potential_sediment()  # Redox potential of sediment at start and end, respectively
-        D['redox_sediment_start'].append(redox_s1)
-        D['redox_sediment_end'].append(redox_s2)
+        if "oxygencontent" in self.info:
+            ox_w_low = self.info["oxygencontent"].get_oxygen_content_water_low()
+            ox_w_high = self.info["oxygencontent"].get_oxygen_content_water_high()
+            ox_s_low = self.info["oxygencontent"].get_oxygen_content_sediment_low()
+            ox_s_high = self.info["oxygencontent"].get_oxygen_content_sediment_high()
+            if ox_w_low == 'NA':
+                ox_w_low = np.nan
+            if ox_w_high == 'NA':
+                ox_w_high = np.nan
+            if ox_s_low == 'NA':
+                ox_s_low = np.nan
+            if ox_s_high == 'NA':
+                ox_s_high = np.nan
+            if ox_w_low and ox_w_high :
+        
+                D["oxygen_content_water_start"].append(float(ox_w_low))
+                D["oxygen_content_water_end"].append(float(ox_w_high))
+                D["oxygen_content_water"].append(np.nanmean([float(ox_w_low), float(ox_w_high)]))
+                D["oxygen_content_water_unit"].append(self.info["oxygencontent"].get_unit())
+            else:
+                D["oxygen_content_water_start"].append(np.nan)
+                D["oxygen_content_water_end"].append(np.nan)
+                D["oxygen_content_water"].append(np.nan)
+                D["oxygen_content_water_unit"].append(np.nan)
+    
+            if ox_s_low and ox_s_high:      
+                D["oxygen_content_sediment_start"].append(float(ox_s_low))
+                D["oxygen_content_sediment_end"].append(float(ox_s_high))
+                D["oxygen_content_sediment"].append(np.nanmean([float(ox_s_low), float(ox_s_high)]))
+                D["oxygen_content_sediment_unit"].append(self.info["oxygencontent"].get_unit())
+            else:
+                D["oxygen_content_sediment_start"].append(np.nan)
+                D["oxygen_content_sediment_end"].append(np.nan)
+                D["oxygen_content_sediment"].append(np.nan)
+                D["oxygen_content_sediment_unit"].append(np.nan)
+       
+        else:
+            D["oxygen_content_water_start"].append(np.nan)
+            D["oxygen_content_water_end"].append(np.nan)
+            D["oxygen_content_water"].append(np.nan)
+            D["oxygen_content_water_unit"].append(np.nan)
+            D["oxygen_content_sediment_unit"].append(np.nan)
+            D["oxygen_content_sediment_start"].append(np.nan)
+            D["oxygen_content_sediment_end"].append(np.nan)
+            D["oxygen_content_sediment"].append(np.nan)
+        
+        if "biomass_ws" in self.info:
+            if self.info['biomass_ws'].get_start_water_cells() or self.info['biomass_ws'].get_end_water_cells():
+                D['biomass_cells_count_water'].append(np.nanmean([self.info['biomass_ws'].get_start_water_cells(), self.info['biomass_ws'].get_end_water_cells()]))
+                D['biomass_cells_count_water_unit'].append(self.info['biomass_ws'].get_unit())
+            else: 
+                D['biomass_cells_count_water'].append(np.nan)
+                D['biomass_cells_count_water_unit'].append(np.nan)
+            if self.info['biomass_ws'].get_start_sediment_cells() or self.info['biomass_ws'].get_end_sediment_cells():
+                D['biomass_cells_count_sediment'].append(np.nanmean([float(self.info['biomass_ws'].get_start_sediment_cells()), float(self.info['biomass_ws'].get_end_sediment_cells())]))
+                D['biomass_cells_count_sediment_unit'].append(self.info['biomass_ws'].get_unit())
+            else:
+                D['biomass_cells_count_sediment'].append(np.nan)
+                D['biomass_cells_count_sediment_unit'].append(np.nan)
+            start = self.info['biomass_ws'].get_start_sediment_mg()
+            end = self.info['biomass_ws'].get_end_sediment_mg()
+            if start and end:
+                start = start.replace('<', '')
+                end = end.replace('<', '')
+                D['biomass_sediment_mg_start'].append(self.info['biomass_ws'].get_start_sediment_mg())
+                D['biomass_sediment_mg_end'].append(self.info['biomass_ws'].get_end_sediment_mg())
+
+                D['biomass'].append(np.nanmean([float(start), float(end)]))
+                D['biomass_sediment_unit'].append("mg")
+            else:
+                D['biomass_sediment_mg_start'].append(np.nan)
+                D['biomass_sediment_mg_end'].append(np.nan)
+                D['biomass'].append(np.nan)
+                D['biomass_sediment_unit'].append(np.nan)
+        else:
+            D['biomass_cells_count_water'].append(np.nan)
+            D['biomass_cells_count_water_unit'].append(np.nan)
+            D['biomass_cells_count_sediment'].append(np.nan)
+            D['biomass_cells_count_sediment_unit'].append(np.nan)
+            D['biomass_sediment_mg_start'].append(np.nan)
+            D['biomass_sediment_mg_end'].append(np.nan)
+            D['biomass'].append(np.nan)
+            D['biomass_sediment_unit'].append(np.nan)
+        # Redox potential of water and sediment
+        if 'redoxpotential' in self.info:
+            D['redox_water_start'].append(self.info['redoxpotential'].get_lowPotentialWater())
+            D['redox_water_end'].append(self.info['redoxpotential'].get_highPotentialWater())
+            D['redox_sediment_start'].append(self.info['redoxpotential'].get_lowPotentialSediment())
+            D['redox_sediment_end'].append(self.info['redoxpotential'].get_highPotentialSediment())
+        else:
+            D['redox_water_start'].append(np.nan)
+            D['redox_water_end'].append(np.nan)
+            D['redox_sediment_start'].append(np.nan)
+            D['redox_sediment_end'].append(np.nan)
         # sample location
-        D['sample_location'].append(self.fetch_sample_location())
-        D['sediment_porosity'].append(self.fetch_sample_porosity())  # sediment porosity
-        D['soil_texture'].append(self.fetch_soiltexture1())
-        _sand, _silt, _clay = self.fetch_soiltexture2()
-        D['sand'].append(_sand)
-        D['silt'].append(_silt)
-        D['clay'].append(_clay)
+        D['sediment_condition'].append(np.nan)
+        if 'samplelocation' in self.info:
+            D['sample_location'].append(self.info['samplelocation'].get_samplelocation())
+        else:
+            D['sample_location'].append(np.nan)
+        if 'sedimentporosity' in self.info:
+            D['sediment_porosity'].append(self.info['sedimentporosity'].get_sedimentporosity())
+        else:
+            D['sediment_porosity'].append(np.nan)
+        if 'soiltexture1' in self.info:
+            D['soil_texture'].append(self.info["soiltexture1"].get_soilTextureType())
+        else:
+            D['soil_texture'].append(np.nan)
+        if 'soiltexture2' in self.info:
+            D['sand'].append(self.info["soiltexture2"].get_sand())  # sand
+            D['silt'].append(self.info["soiltexture2"].get_silt())  # silt                  
+            D['clay'].append(self.info["soiltexture2"].get_clay())  # clay
+        else:
+            D['sand'].append(np.nan)
+            D['silt'].append(np.nan)
+            D['clay'].append(np.nan)
         return D
 
 

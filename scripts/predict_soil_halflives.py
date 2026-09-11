@@ -3,22 +3,8 @@
 ---Import---
 ------------
 """
-# python 
-import sys
-import os
-import random
-
-# third-party
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns   
-import enviPath_python as ep
 
 # project
-from pepper_lab.pepper import *
-from pepper_lab.datastructure import *
-from pepper_lab.descriptors import *
 from pepper_lab.datastructuresoil import *
 from pepper_lab.modeling import *
 from pepper_lab.predict import *
@@ -45,7 +31,7 @@ benchmarking_prediction = False
 if __name__ == "__main__":
     print(os.path.abspath(os.sep))
     current_path = os.getcwd()
-    pep = Pepper(pepper_data_location=os.path.join(current_path, "..", ".."))
+    pep = Pepper()
     pep.set_tag('all_data')
     pep.set_setup_name('uncertainty_paper_soil')
     pep.set_data_type('soil')
@@ -60,7 +46,7 @@ if __name__ == "__main__":
 #    -----------------
     soil_data = DataStructureSoil(pep)
     soil_data.curate_annotate(from_csv=True, from_paper=True)
-    soil_data.reduce_for_modelling(from_csv=False)
+    soil_data.reduce_for_modelling(from_csv=True)
 
 #    -----------------
 #    ---Descriptors---
@@ -124,7 +110,7 @@ if __name__ == "__main__":
         # calculate descriptors for TP smiles and predict endpoint
         new_prediction.predict_endpoint(input_model=pickled_model_filename,input_model_format='pickle',
                                         input_smiles=input_file_name, input_smiles_type='tsv',
-                                        precalculated_descriptors=False) # set to true if descriptors are already calculated
+                                        precalculated_descriptors=True) # set to true if descriptors are already calculated
 
         ###----------------------------------------------
         ###---Visualization of TP and parent compounds---
@@ -373,7 +359,7 @@ if __name__ == "__main__":
         zeropm_file = "filtered_zeropm_smiles.tsv"
         zero_pm_prediction.predict_endpoint(input_model=pickled_model_filename, input_model_format='pickle',
                                             input_smiles=zeropm_file, input_smiles_type='tsv',
-                                            precalculated_descriptors=False) # set to true if already calculated
+                                            precalculated_descriptors=True) # set to true if already calculated
 
         zero_pm_predictions = zero_pm_prediction.model.predicted_target_variable.copy()
 

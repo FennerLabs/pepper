@@ -1,5 +1,3 @@
-from fileinput import filename
-
 import pandas as pd
 import numpy as np
 import os
@@ -7,6 +5,7 @@ import sys
 from copy import deepcopy
 import yaml
 
+import pepper_lab
 from pepper_lab.datastructure import DataStructure
 from pepper_lab.pepper import Pepper
 from pepper_lab.descriptors import Descriptors
@@ -19,10 +18,8 @@ from pepper_lab.util import Util
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.model_selection import KFold, train_test_split
-from sklearn.decomposition import PCA
-from sklearn.pipeline import Pipeline
-import seaborn as sns
-import matplotlib.pyplot as plt
+# from sklearn.decomposition import PCA
+# from sklearn.pipeline import Pipeline
 
 
 # Importing all regressors
@@ -114,6 +111,7 @@ class Modeling(Pepper):
 
         # Best models from
         self.best_models = []
+        self.config_location = pep.config_location
 
 
 
@@ -231,7 +229,7 @@ class Modeling(Pepper):
         :param regressor_name_list: List of abbreviations of regressors for which nested CV will be performed
         :param feature_space_list: Features to be considered. By default, all loaded features are considered
         :param load_existing: Load existing score files or visualisation
-        :param config: regressor configs as defined in ./config/regressor_settings__['range'/'singlevalue']_[config].yml config file
+        :param config: regressor configs as defined in [pepper.config_location]/regressor_settings__['range'/'singlevalue']_[config].yml config file
         """
         function_name = sys._getframe().f_code.co_name  # get the name of the function
         print("\n############# Nested cross-validation screening #############")
@@ -555,9 +553,10 @@ class Modeling(Pepper):
         :param mode: 'singlevalue' or 'range' (for grid search)
         :param config: 'default', or user-defined regressor setting
         """
-        filename = '../config/regressor_settings_{}_{}.yml'.format(mode, config)
+        filename = 'regressor_settings_{}_{}.yml'.format(mode, config)
+        path_to_file = os.path.join(self.config_location, filename)
         print("\tload regressor settings from {}".format(filename))
-        with open(filename, 'r') as file:
+        with open(path_to_file, 'r') as file:
             self.regressor_settings = yaml.safe_load(file)
 
         self.complete_regressor_name_list = list(self.regressor_settings.keys())

@@ -1,0 +1,16 @@
+RF:
+    name: Random Forest Regressor
+    regressor: RandomForestRegressor
+    regressor_params:
+        n_estimators: 50
+        max_depth: 10
+        min_samples_split: 5
+    feature_selection_method: importance
+    feature_selection_parameters:
+        importance:
+            method: top_k
+            top_k: 50
+    feature_reduction_method: svd
+    feature_reduction_parameters:
+        svd:
+            n_components: 8

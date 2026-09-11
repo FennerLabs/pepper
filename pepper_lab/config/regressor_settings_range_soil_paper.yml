@@ -1,0 +1,34 @@
+RF:
+    name: Random Forest Regressor
+    regressor: RandomForestRegressor
+    regressor_params:
+        n_estimators: [ 10, 50, 100 ]
+        max_depth: [ null, 5, 10, 20 ] # null translates to None
+        max_samples: [ 0.5, 0.7, 0.9, null ]
+        min_samples_split: [ 2, 5, 10 ]
+    feature_selection_method: [None]
+    feature_selection_parameters:
+        importance:
+            method: importance
+            min_importance: 0.005
+    feature_reduction_method: [None]
+    feature_reduction_parameters:
+        pca:
+            n_components: []
+GPR:
+    name: Gaussian Process Regressor
+    regressor: GaussianProcessRegressor
+    regressor_params:
+        normalize_y: [True]
+        n_restarts_optimizer: [0,1,2]
+        kernel: ["ConstantKernel(1.0, (1e-3, 1e3)) * RBF(length_scale=1.0, length_scale_bounds=(1e-3, 1e3))", "ConstantKernel(1.0, (1e-3, 1e3)) * Matern(length_scale=2.5, length_scale_bounds=(1e-3, 1e3), nu=0.5)", "ConstantKernel(1.0, (1e-3, 1e3)) * Matern(length_scale=2.5, length_scale_bounds=(1e-3, 1e3), nu=1.5)", "ConstantKernel(1.0, (1e-3, 1e3)) * Matern(length_scale=2.5, length_scale_bounds=(1e-3, 1e3), nu=2.5)", "ConstantKernel(1.0, (1e-3, 1e3)) * RationalQuadratic(length_scale=1.0, alpha=1.0)"]
+    feature_selection_method: [None]
+    feature_selection_parameters:
+        sequential:
+            method: min_improvement
+            top_k: 25
+            min_improvement: 0
+    feature_reduction_method: ['pca', None]
+    feature_reduction_parameters:
+        pca:
+            n_components: [33, 34, 35, 36, 37, 39, 40]

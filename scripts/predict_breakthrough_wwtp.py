@@ -36,6 +36,8 @@ if __name__ == '__main__':
                                    only_above_LOQ=True, no_formation=True, avoid_high_std=True)
     wwtp_data.select_modeling_data()
     wwtp_data.create_modelling_input()
+    # wwtp_data.load_data('model_data')
+    # wwtp_data.randomize_y()
 
     # ------------------------------------#
     # Descriptor calculation              #
@@ -43,20 +45,26 @@ if __name__ == '__main__':
     # calculate descriptors
     descriptors = Descriptors(pep)
     descriptors.set_data(wwtp_data)
-    descriptors.load_descriptors(from_csv=False, MACCS=True)
+    descriptors.load_descriptors(from_csv=True, mfps=False, mordred=False, MACCS=True, enviPath_trig=False)
+
+    visuals = Visualize(descriptors, 'chemical_space')
+    # visuals.train_my_openTSNE(load_from_csv=True,
+    #                           training_fingerprint_directory='/Users/corderjo/switchdrive/pepper_sharing/kerstin_fingerprints.csv')
+    # visuals.show_chemical_space(descriptors.mfps, plot_name='all_substances_no_additional_curation')
+    # print('check_figure')
+
+    # descriptors.generate_pseudodescriptors()
 
     # ------------------------------------#
     # Modeling                            #
     # ------------------------------------#
 
     wwtp_modeling = Modeling(pep, wwtp_data, descriptors)
-
-    desired_wwtp_model = wwtp_modeling.build_final_model(regressor_name='RF',
-                                                         feature_space='maccs', config='wwtp_optimized')
-    # Alternative option
     # wwtp_modeling.nested_cross_val_screening(feature_space_list=['maccs',
     #                                                               'maccs+ep_trig',
     #                                                               'mordred',
     #                                                               'all'],
     #                                                                config='default_wwtp')
+    desired_wwtp_model = wwtp_modeling.build_final_model(regressor_name='RF',
+                                                         feature_space='maccs', config='wwtp_optimized')
     print('done')

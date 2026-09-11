@@ -4,6 +4,7 @@ from pepper_lab.pepper import Pepper
 from pepper_lab.util import *
 from pepper_lab.datastructure import DataStructure
 from pepper_lab.bayesian import *
+from pepper_lab.visualize import Visualize
 
 
 class DataStructureSludge(DataStructure):
@@ -14,7 +15,6 @@ class DataStructureSludge(DataStructure):
         self.target_variable_name = pep.get_target_variable_name()
         self.target_variable_std_name = pep.get_target_variable_std_name()
         self.compound_name = pep.get_compound_name()
-        self.id_name = pep.get_id_name()
 
         self.envipath_package = 'https://envipath.org/package/7932e576-03c7-4106-819d-fe80dc605b8a'
         self.data_type = 'sludge'
@@ -28,6 +28,18 @@ class DataStructureSludge(DataStructure):
         self.model_data_tsv = self.build_output_filename('model_data')
         self.cpd_data_description_file = self.build_output_filename('cpd_data_description')
 
+        self.experimental_parameter_names = ['original_sludge_amount',
+                                             'sludge_retention_time',
+                                             'total_suspended_solids_concentration_start',
+                                             'total_suspended_solids_concentration_end',
+                                             'addition_of_nutrients',
+                                             'nitrogen_content_influent',
+                                             'oxygen_demand_value',
+                                             'oxygen_uptake_rate',
+                                             'phosphorus_content',
+                                             'redox',
+                                             ]
+
     def curate_annotate(self, from_csv: bool = False):
         """
         have either rate constants or half-lives, we can utilize the reaction order formula to convert kinetic data
@@ -39,7 +51,7 @@ class DataStructureSludge(DataStructure):
         :return:
         """
         if from_csv:
-            self.full_data = pd.read_csv(os.path.join('..', 'data', 'full_data_sludge_all_data.tsv'), sep='\t')
+            self.full_data = pd.read_csv(os.path.join('../..', 'pepper_data/data_structure/sludge', 'full_data_sludge_all_data.tsv'), sep='\t')
             return
 
         self.full_data = self.raw_data
@@ -47,6 +59,9 @@ class DataStructureSludge(DataStructure):
         self.transform_values()
 
     def transform_values(self):
+
+        self.full_data[self.id_name] = self.index_compounds()
+        self.full_data.sort_values(by=self.id_name)
         self.full_data["kinetics_comment"] = self.full_data[["rateconstant_comment", "halflife_comment"]].apply(lambda x: self.process_comment_list(x), axis=1)
         self.full_data['k_combined'] = self.full_data.apply(lambda x: self.get_k(x), axis=1)
         self.full_data['k_biomass_corrected'] = self.full_data.apply(lambda x: self.get_k_biomass(x), axis=1)
@@ -56,6 +71,7 @@ class DataStructureSludge(DataStructure):
         self.full_data['log_k_biomass_corrected'] = np.log10(self.full_data['k_biomass_corrected'])
         self.full_data['halflife_log'] = np.log10(self.full_data['halflife'])
         self.full_data['log_hl_biomass_corrected'] = np.log10(self.full_data['hl_biomass_corrected'])
+        self.full_data['DT50_count'] = self.count_halflives()
 
         self.calculate_target_variables()
         self.full_data.dropna(subset=['halflife', 'halflife_log'], inplace=True)
@@ -63,20 +79,9 @@ class DataStructureSludge(DataStructure):
         self.full_data.to_csv(self.full_data_tsv, sep='\t', index=False)
 
 
-    def reduce_for_modelling(self, from_csv = False):
-        print("\n############# Reduce data set ############# ")
-        if from_csv:
-            self.cpd_data = pd.read_csv(self.cpd_data_tsv, sep='\t')
-            self.model_data = pd.read_csv(self.model_data_tsv, sep='\t')
-            print("Existing files loaded from {} and {}".format(self.cpd_data_tsv,self.model_data_tsv))
-            return
-
-        self.reduce_data()
-        # create modelling input
-        self.create_modelling_input()
-
     def calculate_target_variables(self):
         self.full_data[['hl_gmean', 'biomass_hl_gmean']] = self.full_data.groupby('canonical_SMILES')[['halflife', 'hl_biomass_corrected']].transform(lambda x: self.g_mean(x))
+        self.full_data['biomass_hl_log_gmean'] = np.log10(self.full_data['biomass_hl_gmean'])
         self.full_data[['hl_log_median', 'biomass_hl_log_median']] = self.full_data.groupby('canonical_SMILES')[['halflife_log', 'log_hl_biomass_corrected']].transform('median')
         self.full_data[['hl_log_std', 'biomass_hl_log_std']] = self.full_data.groupby('canonical_SMILES')[['halflife_log', 'log_hl_biomass_corrected']].transform(lambda x: np.nanstd(x))
         self.full_data[['acidity_std', 'temperature_std',
@@ -87,16 +92,19 @@ class DataStructureSludge(DataStructure):
     def reduce_data(self):
         # reduce dataset
         print('Data frame size: ', len(self.full_data))
+        
+
+        
         self.cpd_data = self.full_data.loc[:, [
-            self.id_name, self.smiles_name, self.compound_name, 'compound_id',
-            'hl_gmean', 'biomass_hl_gmean', 'hl_log_median', 'biomass_hl_log_median',
+            self.id_name, self.smiles_name, self.compound_name,'DT50_count','compound_id',
+            'hl_gmean', 'biomass_hl_gmean', 'biomass_hl_log_gmean','hl_log_median', 'biomass_hl_log_median',
             'hl_log_std', 'biomass_hl_log_std', 'hl_log_spread', 'biomass_hl_log_spread',
-            'hl_log_bayesian_mean', 'hl_log_bayesian_std',
-            'biomass_std', 'acidity_std', 'temperature_std',
+            'hl_biomass_corrected_log_bayesian_mean', 'hl_biomass_corrected_log_bayesian_mean_std','hl_biomass_corrected_log_bayesian_std',
+            'biomass_std', 'acidity_std', 'temperature_std', 
             'canonical_SMILES', 'cropped_canonical_SMILES', 'cropped_canonical_SMILES_no_stereo']]
         self.cpd_data = self.cpd_data.drop_duplicates(self.id_name)
-        self.cpd_data.rename(columns={"DT50_log_bayesian_mean": self.target_variable_name,
-                                      "DT50_log_bayesian_std": self.target_variable_std_name},
+        self.cpd_data.rename(columns={"hl_biomass_corrected_log_bayesian_mean": self.target_variable_name,
+                                      "hl_biomass_corrected_log_bayesian_mean_std": self.target_variable_std_name},
                              inplace=True)
 
         # save and describe
@@ -190,38 +198,70 @@ class DataStructureSludge(DataStructure):
             hl_biomass = np.log(2) / k_biomass
         return hl_biomass
 
-    def g_mean(self, x):
-        a = np.log(x)
-        return np.exp(a.mean())
-
     def calculate_bay_mean_std(self):
-        bmean, bstd = self.get_bayesian_stats()
-        self.full_data['hl_log_bayesian_mean'] = bmean
-        self.full_data['hl_log_bayesian_std'] = bstd
+        bmean, bstd, bmeanstd = self.get_bayesian_stats()
+        self.full_data['hl_biomass_corrected_log_bayesian_mean'] = bmean
+        self.full_data['hl_biomass_corrected_log_bayesian_std'] = bstd
+        self.full_data['hl_biomass_corrected_log_bayesian_mean_std'] = bmeanstd
         # df.to_csv(output_file_path+'sludge_calculated_test_for_baycalculation.tsv', sep='\t')
         return
 
     def get_bayesian_stats(self):
         mean_list = []
         std_list = []
+        mean_std_list = []
         results = {}  # {'index': (mean, std)}
         for index, row in tqdm(self.full_data.iterrows()):
             if row['canonical_SMILES'] in results.keys():
                 mean, std = results[row['canonical_SMILES']]
             else:
                 df = self.full_data.loc[self.full_data['canonical_SMILES'] == row['canonical_SMILES']]
-                y = np.array(df['halflife_log'])
+                y = np.array(df['log_hl_biomass_corrected'])
                 kinetics_comments = df.kinetics_comment.to_list()
                 print("\nCOMPOUND canonical_SMILES {}".format(row['canonical_SMILES']))
                 print("Compute bayes for {} with comments {}".format(y, kinetics_comments))
                 bayesian = Bayesian(y=y, comment_list=kinetics_comments)
-                bayesian.set_prior_mu(mean=0, std=1)  # (Original: mean=1.5, std=2) Set prior_mu_std as 2
-                bayesian.set_prior_sigma(mean=0.6, std=0.2)  # (Original: mean=0.2, std=0.5)
-                bayesian.set_lower_limit_sigma(0.3)
-                mean, std, _ = bayesian.get_posterior_distribution()
+                bayesian.set_prior_mu(mean=0, std=2)  # prior same as for Claudia's paper
+                bayesian.set_prior_sigma(mean=0.8, std=0.6) # std * 2 to capture more
+                bayesian.set_lower_limit_sigma(0.1)
+
+                mean, std, mean_std= bayesian.get_posterior_distribution()
                 results[row['canonical_SMILES']] = (mean, std)
                 print('mean: {}, std: {}'.format(mean, std))
             mean_list.append(round(mean, 2))
             std_list.append(round(std, 2))
+            mean_std_list.append(round(mean_std, 2))
 
-        return mean_list, std_list
+        return mean_list, std_list, mean_std_list
+
+    def count_halflives(self):
+        new = []
+        for i in self.full_data[self.id_name]:
+            new.append(self.full_data[self.id_name].value_counts()[i])
+        return new
+    
+    def index_compounds(self):
+        new = []
+        this_id = 0
+        d = {}
+        for index, row in self.full_data.iterrows():
+            if row[self.smiles_name] not in d.keys():
+                this_id += 1
+                d[row[self.smiles_name]] = this_id
+            new.append(this_id)
+        return new
+    
+        # Visualization
+    def analyze_distributions(self):
+        """
+        This function visualizes the distribution of the mean and the standard deviation of the target variable.
+        Optionally, distributions obtained from Bayesian inference can be considered. the cutoff value is how many experimental
+        DT50 values one compound need to be considered for the analysis.
+        """
+        print("\n############# Analyze target variable distribution ############# ")
+        v = Visualize(self,'analyze_distributions')
+        # distribution of target variable
+        v.plot_target_variable_distribution(mean_name='biomass_hl_log_gmean', std_name='biomass_hl_log_std', cutoff_value = 4,
+                                            include_BI = True,
+                                          BI_mean_name = 'hl_biomass_corrected_log_bayesian_mean',
+                                          BI_std_name = 'hl_biomass_corrected_log_bayesian_std')

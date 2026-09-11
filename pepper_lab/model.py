@@ -991,8 +991,8 @@ class Model(Pepper):
     def save_external_predictions(self, descriptors):
         """ Same as save_predicted_values, but for external predictions. """
         self.predicted_target_variable = pd.DataFrame()
-        self.predicted_target_variable[self.smiles_name] = descriptors.features[self.smiles_name]
-        self.smiles_predicted = descriptors.features[self.smiles_name]
+        self.smiles_predicted = descriptors.features[descriptors.smiles_name]
+        self.predicted_target_variable[self.smiles_name] = self.smiles_predicted
         self.predicted_target_variable[self.target_variable_name + '_predicted'] = self.y_pred
         if self.has_y_pred_score:
             self.predicted_target_variable[self.target_variable_std_name + '_predicted'] = self.y_pred_score
@@ -1117,7 +1117,7 @@ class Model(Pepper):
         """
         # retrieve only features that are used by the model
         new_header = list(deepcopy(self.feature_names_used_for_training))
-        new_header.append(self.smiles_name)
+        new_header.append(descriptors.smiles_name)
         descriptors.features = descriptors.features.loc[:,descriptors.features.columns.intersection(new_header)]
         print(f"number of rows before dropping missing values {descriptors.features.shape[0]}")
         descriptors.features.dropna(axis=0, how='any', inplace=True)
@@ -1136,7 +1136,6 @@ class Model(Pepper):
         X_preprocessed = self.feature_preprocessor.transform(temp_features)
         
         # if a transformer for feature dimensionality reduction is available
-        
         if self.feature_transformer:
             X_selected = X_preprocessed[X_preprocessed.columns.intersection(self.feature_transformer.feature_names_in_)]
             self.X_preprocessed = X_selected
@@ -1370,7 +1369,7 @@ class Model(Pepper):
             # Extract the training data from the remaining data
             indices = shuffled_indices[:stop_index]
             indices.sort()
-            fraction_dict[np.round(fraction,1)] = indices
+            fraction_dict[fraction.round(1)] = indices
         return fraction_dict
 
     def complete_evaluate_models(self, run_id, train_fraction = 1, visualize=True, get_nearest_neighbors=False):
@@ -1619,7 +1618,7 @@ class Model(Pepper):
     def create_prediction_probabilities(self):
         self.prediction_probabilities = {}
 
-        if len(self.y_pred_score) != 0:
+        if len(self.y_pred_score) != 0 and self.data_type in ['soil']:
             P_nP, P_P, P_vP = self.calculate_prediction_probabilities(
                 mu=self.y_pred,
                 sigma=self.y_pred_score,
@@ -1629,9 +1628,9 @@ class Model(Pepper):
         else:
             P_nP, P_P, P_vP = [[np.nan]*len(self.y_pred)] *3
 
-        self.prediction_probabilities['non-Persistent'] = P_nP
-        self.prediction_probabilities['Persistent'] = P_P
-        self.prediction_probabilities['very Persistent'] = P_vP
+        self.prediction_probabilities['p(nP)'] = np.round(P_nP,3)
+        self.prediction_probabilities['p(P)'] = np.round(P_P, 3)
+        self.prediction_probabilities['p(vP)'] = np.round(P_vP, 3)
         self.prediction_probabilities[self.smiles_name] = self.smiles_predicted.values
 
         self.prediction_probabilities = pd.DataFrame(self.prediction_probabilities)

@@ -455,7 +455,7 @@ class Visualize(Pepper):
         df_RMSE = df.loc[:, ['RMSE_exp', 'RMSE_dist']]
         df_RMSE.rename(columns={'RMSE_exp': 'from\nreported\nvalues', 'RMSE_dist': 'from\ndistribution'}, inplace=True)
         ax = sns.boxplot(data=df_RMSE, ax=axes[1], palette='Paired').set_title('RMSE')
-        axes[0].set_ylim(0.6, 1)
+        axes[0].set_ylim(0, 1)
         axes[1].set_ylim(0.0, 0.35)
         figure.tight_layout()
         output_filename = os.path.join(self.get_data_directory(),
@@ -924,6 +924,8 @@ class Visualize(Pepper):
         sns.set_theme(style="whitegrid")
         sns.set_style("ticks")
         sns.set_context(self.context)
+
+        df.apply(lambda s: pd.to_numeric(s, errors='coerce').notnull().all())
 
         # draw pairplot for general overview and outlier detection
         print('Drawing pairplot...')
