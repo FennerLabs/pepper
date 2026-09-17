@@ -46,7 +46,7 @@ if __name__ == "__main__":
 #    -----------------
     soil_data = DataStructureSoil(pep)
     soil_data.curate_annotate(from_csv=True, from_paper=True)
-    soil_data.reduce_for_modelling(from_csv=True)
+    soil_data.reduce_for_modelling(from_csv=False)
 
 #    -----------------
 #    ---Descriptors---
