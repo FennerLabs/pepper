@@ -4,7 +4,7 @@ data/soil/cpd_data_soil_all_data.tsv filter=lfs diff=lfs merge=lfs -text
 data/soil/full_data_soil_all_data.tsv filter=lfs diff=lfs merge=lfs -text
 data/soil/TP_soil_without_DT50.tsv filter=lfs diff=lfs merge=lfs -text
 data/soil/raw_data_soil_all_data.tsv filter=lfs diff=lfs merge=lfs -text
-data/soil/raw_data_soil_25.tsv filter=lfs diff=lfs merge=lfs -text
+data/soil/raw_data_benchmarking_soil_25.tsv filter=lfs diff=lfs merge=lfs -text
 # WWTP
 data/wwtp-data/full_data_example_WWTP_combined_data.tsv filter=lfs diff=lfs merge=lfs -text
 data/wwtp-data/opera_properties_WWTP_combined_data.tsv filter=lfs diff=lfs merge=lfs -text
