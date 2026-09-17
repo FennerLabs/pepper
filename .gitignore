@@ -1,26 +1,3 @@
-# This first section includes files that should be tracked in the renku/gitlab repo but not in github
-
-.renku/
-.renkulfsignore
-environment.yml
-
-workflows/
-Dockerfile
-.dockerignore
-
-.gitlab-ci.yml
-.gitattributes
-
-.vscode/
-tests/
-
-## private data (add tracking when we are ready)
-attributes_definitions.txt
-
-## private scripts
-scripts/.gitattributes
-scripts/check_wwtp_names_dict.py
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -31,13 +8,12 @@ __pycache__/
 
 # json lauch
 launch.json
+.vscode
 # Environments
 .env
 .venv
 env/
 venv/
-venv*/
-pepper_lab_venv_313/
 ENV/
 env.bak/
 venv.bak/
@@ -65,7 +41,7 @@ pepper.egg-info/
 output/
 
 # Jose's local files
-config/jose/
+pepper_lab/config/jose/
 jose_only/
 tsvs_xlsx/
 pdfs_pngs_html/
@@ -77,12 +53,12 @@ check.py
 scripts/jose_preprocess.py
 NotesWWWTPCuration.txt
 jose_notebook.ipynb
+
 *.csv
 *.png
 *.numbers
 *.xlsx
 *.pdf
-.gitattributes  # Is this related to LFS tracking? 
 *.smi
 Proposed_new_data_types.txt
 notebooks_backup/*
