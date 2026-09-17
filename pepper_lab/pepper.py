@@ -3,19 +3,13 @@ import os
 import re
 
 class Pepper:
-    def __init__(self, renku=False,
-                 pepper_data_location = None):
+    def __init__(self, pepper_data_location = None):
         self.root_directory = os.path.join(str(pathlib.Path(__file__).parent.resolve()), '..')
 
         if pepper_data_location is None:
-            self.pepper_data_location = os.path.join(self.root_directory, '..')
-        else:
-            self.pepper_data_location = pepper_data_location
+            pepper_data_location = os.path.join(self.root_directory, '..')  # same directory as pepper
 
-        if renku:
-            self.data_directory = os.path.join(self.root_directory, 'output')
-        else:
-            self.data_directory = os.path.join(self.root_directory, self.pepper_data_location, 'pepper_data')
+        self.data_directory = os.path.join(pepper_data_location, 'pepper_data')
 
         self.build_directory_structure()
         self.tag = 'my_data_tag' # user-defined tag, e.g., test_data, all_data, curated_data

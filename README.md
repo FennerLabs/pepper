@@ -67,9 +67,6 @@ The code to reproduce analyses, tables and figures can be found in the jupyter n
 jupyter notebook soil_half_lives_additional_analyses.ipynb
 ```
 
-## Sessions 
-Use this link to start a session and test PEPPER
-[![launch - renku](https://renkulab.io/renku-badge.svg)](https://renkulab.io/projects/fenner-labs/projects/pepper/sessions/new?autostart=1)
 
 ## Related Projects
 We also have a pepper_app 

@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # calculate descriptors
     descriptors = Descriptors(pep)
     descriptors.set_data(wwtp_data)
-    descriptors.load_descriptors(from_csv=True, mfps=False, mordred=False, MACCS=True, enviPath_trig=False)
+    descriptors.load_descriptors(from_csv=False, mfps=False, mordred=False, MACCS=True, enviPath_trig=False)
 
     visuals = Visualize(descriptors, 'chemical_space')
     # visuals.train_my_openTSNE(load_from_csv=True,
