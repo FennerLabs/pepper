@@ -10,8 +10,8 @@ class Pepper:
             pepper_data_location = os.path.join(self.root_directory, '..')  # same directory as pepper
 
         self.data_directory = os.path.join(pepper_data_location, 'pepper_data')
-
-        self.build_directory_structure()
+        if type(self) == Pepper: # only build directory structure when __init__ is called from parent class Pepper
+            self.build_directory_structure()
         self.tag = 'my_data_tag' # user-defined tag, e.g., test_data, all_data, curated_data
         self.data_type = 'other' # soil, sediment, sludge, WWTP etc.
         self.setup_name = 'default_setup' # string to distinguish between different settings used, versatile
