@@ -47,15 +47,12 @@ class Pepper:
     def get_data_directory(self):
         return self.data_directory
 
-    def get_pepper_data_location(self):
-        return self.pepper_data_location
-
     def set_pepper_data_location(self, data_location: str):
         """
-        todo: check if location exists and is empty
         @param data_location: where to save PEPPER data starting from user directory.
         """
-        self.pepper_data_location = data_location
+        self.data_directory = os.path.join(data_location, 'pepper_data')
+        self.build_directory_structure()
 
     def get_root_directory(self):
         return self.root_directory
